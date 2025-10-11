@@ -1,0 +1,1054 @@
+* {
+    box-sizing: border-box;
+}
+
+/* ========================================
+   DESIGN TOKENS & CUSTOM PROPERTIES
+   ======================================== */
+
+:root {
+    /* Light Theme Colors */
+    --bg-color-light: #ffffff;
+    --text-color-light: #131516;
+    --panel-bg-light: #f6f7f8;
+    --input-bg-light: #ffffff;
+    --input-border-light: #e2e5e9;
+    --btn-bg-light: #1e7f8b;
+    --btn-text-light: #ffffff;
+    --btn-hover-light: #176570;
+    --hover-bg-light: #eef1f4;
+    --shadow-light: 0 6px 20px rgba(0, 0, 0, 0.08);
+
+    /* Dark Theme Colors */
+    --bg-color-dark: #181a1b;
+    --text-color-dark: #e6e6e6;
+    --panel-bg-dark: #1f2123;
+    --input-bg-dark: #232528;
+    --input-border-dark: #2d3033;
+    --btn-bg-dark: #1e7f8b;
+    --btn-text-dark: #ffffff;
+    --btn-hover-dark: #2a9aa8;
+    --hover-bg-dark: #26292c;
+    --shadow-dark: 0 10px 30px rgba(0, 0, 0, 0.4);
+
+    /* Border Radius Scale */
+    --radius-lg: 12px;
+    --radius-md: 10px;
+    --radius-sm: 8px;
+
+    /* Spacing Scale */
+    --space-xs: 4px;
+    --space-sm: 8px;
+    --space-md: 12px;
+    --space-lg: 16px;
+    --space-xl: 20px;
+    --space-2xl: 24px;
+
+    /* Typography Scale */
+    --font-size-xs: 0.75rem;
+    --font-size-sm: 0.85rem;
+    --font-size-base: 0.95rem;
+    --font-size-lg: 1.125rem;
+    --font-size-xl: 1.25rem;
+
+    /* Animation Timings */
+    --transition-fast: 0.15s ease;
+    --transition-base: 0.2s ease;
+    --transition-slow: 0.3s ease;
+
+    /* Z-index Scale */
+    --z-base: 1;
+    --z-dropdown: 100;
+    --z-sticky: 150;
+    --z-overlay: 1000;
+    --z-sidebar: 1001;
+    --z-modal: 2000;
+    --z-dialog: 10000;
+
+    /* Default Theme (Dark) */
+    --bg-color: var(--bg-color-dark);
+    --text-color: var(--text-color-dark);
+    --panel-bg: var(--panel-bg-dark);
+    --input-bg: var(--input-bg-dark);
+    --input-border: var(--input-border-dark);
+    --btn-bg: var(--btn-bg-dark);
+    --btn-text: var(--btn-text-dark);
+    --btn-hover: var(--btn-hover-dark);
+    --hover-bg: var(--hover-bg-dark);
+    --elev: var(--shadow-dark);
+}
+
+body.light-mode {
+    --bg-color: var(--bg-color-light);
+    --text-color: var(--text-color-light);
+    --panel-bg: var(--panel-bg-light);
+    --input-bg: var(--input-bg-light);
+    --input-border: var(--input-border-light);
+    --btn-bg: var(--btn-bg-light);
+    --btn-text: var(--btn-text-light);
+    --btn-hover: var(--btn-hover-light);
+    --hover-bg: var(--hover-bg-light);
+    --elev: var(--shadow-light);
+}
+
+/* ========================================
+   BASE STYLES
+   ======================================== */
+
+body {
+    margin: 0;
+    font-family: "Quicksand", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-optical-sizing: auto;
+    font-weight: 500;
+    font-size: var(--font-size-base);
+    background: var(--bg-color);
+    color: var(--text-color);
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+    transition: background-color var(--transition-base), color var(--transition-base);
+}
+
+/* ========================================
+   LAYOUT COMPONENTS
+   ======================================== */
+
+#sidebar {
+    width: 320px;
+    background: var(--panel-bg);
+    border-right: 1px solid var(--input-border);
+    padding: var(--space-lg);
+    padding-top: 0px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+    overflow-y: auto;
+    z-index: var(--z-sidebar);
+    transition: transform var(--transition-slow), background-color var(--transition-base), border-color var(--transition-base);
+}
+
+#sidebartop {
+    position: sticky;
+    top: 0;
+    margin-top: 14px;
+    height: 140px;
+    width: 100%;
+    padding: var(--space-md);
+    background: var(--panel-bg);
+    z-index: var(--z-base);
+    margin-bottom: var(--space-md);
+}
+
+#sidebartop :nth-child(1) {
+    width: 255px;
+    margin-bottom: 10px;
+}
+
+#overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(2px);
+    display: none;
+    z-index: var(--z-overlay);
+    transition: opacity var(--transition-base);
+}
+
+#main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    position: relative;
+}
+
+.topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-sm);
+    padding: 14px var(--space-xl);
+    border-bottom: 1px solid var(--input-border);
+    background: var(--panel-bg);
+    transition: background-color var(--transition-base), border-color var(--transition-base);
+    position: relative;
+    z-index: var(--z-dropdown);
+}
+
+.left-group,
+.actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.desktop-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* ========================================
+   TYPOGRAPHY
+   ======================================== */
+
+    .title {
+      margin: 0;
+      font-size: var(--font-size-lg);
+      font-weight: 700;
+      letter-spacing: 0.2px;
+      color: var(--text-color);
+    }
+
+    .title-free h6 {
+      font-weight: 400;
+      margin: 0;
+    }
+
+    .title-free h6 a {
+      color: white;
+      opacity: 0.5;
+      padding: 2px;
+      /* background-color: rgba(255, 0, 0, 0.116); */
+      border-radius: 3px;
+      text-decoration: none;
+    }
+
+/* ========================================
+   FORM ELEMENTS
+   ======================================== */
+
+input[type="text"],
+input[type="password"] {
+    width: 100%;
+    padding: var(--space-md) 14px;
+    border: 1px solid var(--input-border);
+    border-radius: var(--radius-md);
+    background: var(--input-bg);
+    color: var(--text-color);
+    font-size: var(--font-size-base);
+    font-family: inherit;
+    transition: border-color var(--transition-base), background-color var(--transition-base), box-shadow var(--transition-fast);
+}
+
+input[type="text"]:focus,
+input[type="password"]:focus {
+    outline: 2px solid color-mix(in oklab, var(--btn-bg), white 20%);
+    outline-offset: 2px;
+    border-color: var(--btn-bg);
+}
+
+input[type="text"]::placeholder,
+input[type="password"]::placeholder {
+    color: var(--text-color);
+    opacity: 0.55;
+}
+
+#noteName {
+    padding: var(--space-md) 14px;
+    border: 1px solid var(--input-border);
+    border-radius: var(--radius-md);
+    background: var(--input-bg);
+    color: var(--text-color);
+    font-size: var(--font-size-base);
+}
+
+textarea {
+    font-family: inherit;
+}
+
+/* ========================================
+   BUTTONS
+   ======================================== */
+
+.icon-btn,
+.btn {
+    border: none;
+    background: transparent;
+    color: var(--text-color);
+    padding: var(--space-sm) 10px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-family: inherit;
+    font-size: var(--font-size-base);
+    transition: background-color var(--transition-fast), box-shadow var(--transition-fast), transform 0.05s ease;
+    outline: none;
+    user-select: none;
+}
+
+.icon-btn:hover {
+    background: var(--hover-bg);
+}
+
+.icon-btn:active {
+    transform: translateY(0.5px);
+}
+
+.icon-btn:focus-visible,
+.btn:focus-visible {
+    outline: 2px solid color-mix(in oklab, var(--btn-bg), white 20%);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+}
+
+.btn {
+    background: var(--btn-bg);
+    color: var(--btn-text);
+    font-weight: 700;
+    padding: 10px 18px;
+    border-radius: var(--radius-md);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.btn:hover {
+    background: var(--btn-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.btn:active {
+    transform: translateY(0);
+}
+
+.hamburger {
+    width: 38px;
+    height: 38px;
+    border: 1px solid var(--input-border);
+}
+
+#extendBtn {
+    background-color: var(--btn-hover);
+    padding: 10px;
+    border: none;
+    border-radius: var(--radius-md);
+    transition: background-color var(--transition-slow), transform var(--transition-slow);
+}
+
+#extendBtn:hover {
+    background-color: #4aacb9;
+    transform: scale(1.05);
+}
+
+#exportToggle {
+    display: none;
+}
+
+/* ========================================
+   NOTES LIST
+   ======================================== */
+
+#notesList h3 {
+    margin: 14px 0 10px;
+    padding-bottom: var(--space-sm);
+    border-bottom: 1px solid var(--input-border);
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-color);
+    opacity: 0.6;
+}
+
+#notesUl {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+}
+
+.note-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-md) 14px;
+    background: var(--input-bg);
+    border: 1px solid var(--input-border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    position: relative;
+    gap: var(--space-md);
+}
+
+.note-item:hover {
+    background: var(--hover-bg);
+    transform: translateX(2px);
+}
+
+.note-item-content {
+    flex: 1;
+    min-width: 0;
+    cursor: pointer;
+}
+
+.note-title {
+    font-weight: 600;
+    font-size: var(--font-size-base);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: block;
+}
+
+.note-author-display {
+    font-size: 11px;
+    opacity: 0.6;
+    margin-top: 2px;
+}
+
+.kebab {
+    flex-shrink: 0;
+    margin-left: auto;
+    padding: 6px;
+    border-radius: var(--radius-sm);
+    opacity: 0.6;
+    transition: opacity var(--transition-fast), background var(--transition-fast);
+}
+
+.kebab:hover {
+    opacity: 1;
+    background: var(--hover-bg);
+}
+
+/* ========================================
+   DROPDOWN MENUS
+   ======================================== */
+
+.menu,
+.export-menu {
+    position: absolute;
+    background: var(--panel-bg);
+    border: 1px solid var(--input-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--elev);
+    display: none;
+    min-width: 160px;
+    z-index: var(--z-modal);
+    overflow: hidden;
+}
+
+.menu.open,
+.export-menu.open {
+    display: block;
+    animation: slideDown 0.2s ease;
+}
+
+.menu-item,
+.export-menu-item {
+    width: 100%;
+    padding: var(--space-md) var(--space-lg);
+    text-align: left;
+    border: none;
+    background: transparent;
+    color: var(--text-color);
+    cursor: pointer;
+    font-size: var(--font-size-base);
+    font-family: inherit;
+    transition: background-color var(--transition-fast);
+}
+
+.menu-item:hover,
+.export-menu-item:hover {
+    background: var(--hover-bg);
+}
+
+.menu-timer {
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-align: center;
+    color: color-mix(in oklab, var(--text-color), white 25%);
+    background: color-mix(in oklab, var(--panel-bg), var(--text-color) 4%);
+    border-bottom: 1px solid color-mix(in oklab, var(--input-border), transparent 30%);
+    margin-bottom: 6px;
+    padding: 6px 0;
+    letter-spacing: 0.5px;
+    user-select: none;
+    border-radius: 0;
+    transition: color var(--transition-slow), background var(--transition-slow), border-color var(--transition-slow);
+    animation: tickGlow 1s linear infinite;
+}
+
+.export-menu {
+    top: 0;
+    left: 0;
+    min-width: 180px;
+}
+
+/* ========================================
+   SEARCH PANEL
+   ======================================== */
+
+.search-panel {
+    position: absolute;
+    top: 100%;
+    right: var(--space-xl);
+    margin-top: var(--space-sm);
+    background: var(--panel-bg);
+    border: 1px solid var(--input-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--elev);
+    padding: var(--space-md);
+    min-width: 320px;
+    display: none;
+    z-index: var(--z-sticky);
+}
+
+.search-panel.open {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    animation: slideDown 0.2s ease;
+}
+
+.search-input-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+}
+
+#findBoxDropdown {
+    flex: 1;
+    padding: 10px var(--space-md);
+    border: 1px solid var(--input-border);
+    border-radius: var(--radius-md);
+    background: var(--input-bg);
+    color: var(--text-color);
+    font-size: var(--font-size-base);
+}
+
+.search-nav {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.nav-btn {
+    width: 34px;
+    height: 34px;
+    padding: 6px;
+    border: none;
+    background: var(--input-bg);
+    color: var(--text-color);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color var(--transition-fast);
+}
+
+.nav-btn:hover {
+    background: var(--hover-bg);
+}
+
+.nav-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.match-info {
+    font-size: var(--font-size-sm);
+    color: var(--text-color);
+    opacity: 0.75;
+    text-align: center;
+    min-width: 80px;
+}
+
+/* ========================================
+   EDITOR PANEL
+   ======================================== */
+
+.editor-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: var(--space-xl);
+    height: calc(100vh - 59px);
+    background: var(--bg-color);
+    transition: background-color var(--transition-base);
+}
+
+#buttons {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.textarea-container {
+    position: relative;
+    flex: 1;
+    width: 100%;
+    overflow: hidden;
+    border-radius: var(--radius-md);
+}
+
+#highlightBackdrop {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    padding: var(--space-lg);
+    border: 1px solid var(--input-border);
+    border-radius: var(--radius-md);
+    background: var(--input-bg);
+    color: transparent;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    font-size: var(--font-size-base);
+    line-height: 1.65;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    overflow: auto;
+    pointer-events: none;
+    transition: background-color var(--transition-base), border-color var(--transition-base);
+}
+
+#noteContent {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    resize: none;
+    padding: var(--space-lg);
+    border: 1px solid var(--input-border);
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--text-color);
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    font-size: var(--font-size-base);
+    line-height: 1.65;
+    overflow: auto;
+    transition: color var(--transition-base), border-color var(--transition-base);
+}
+
+#noteContent:focus {
+    outline: none;
+    border-color: var(--btn-bg);
+}
+
+#noteContent.readonly {
+    opacity: 0.95;
+    cursor: default;
+}
+
+mark {
+    background-color: rgba(32, 128, 140, 0.35);
+    color: inherit;
+    border-radius: 4px;
+    padding: 2px 0;
+}
+
+mark.current-match {
+    background-color: rgba(32, 128, 140, 0.6);
+    box-shadow: 0 0 0 2px rgba(32, 128, 140, 0.4);
+}
+
+body.light-mode mark {
+    background-color: rgba(32, 128, 140, 0.25);
+}
+
+body.light-mode mark.current-match {
+    background-color: rgba(32, 128, 140, 0.5);
+}
+
+/* ========================================
+   AUTHOR & PASSWORD FIELDS
+   ======================================== */
+
+.author-field {
+    display: flex;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-sm);
+    position: relative;
+}
+
+.author-field input#noteAuthor {
+    flex: 1;
+}
+
+.password-wrapper {
+    position: relative;
+    flex: 1;
+    padding: var(--space-md) 14px;
+    border: 1px solid var(--input-border);
+    border-radius: var(--radius-md);
+    background: var(--input-bg);
+    font-size: var(--font-size-base);
+    transition: border-color var(--transition-base), background-color var(--transition-base), box-shadow var(--transition-fast);
+}
+
+.password-wrapper:focus-within {
+    border-color: var(--btn-bg);
+    box-shadow: 0 0 0 3px rgba(30, 127, 139, 0.1);
+}
+
+.password-wrapper input#notePassword {
+    width: 100%;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--text-color);
+    font-size: var(--font-size-base);
+    outline: none;
+}
+
+/* ========================================
+   PASSWORD DIALOG
+   ======================================== */
+
+.dialog-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    z-index: calc(var(--z-dialog) - 1);
+    animation: fadeIn var(--transition-base);
+}
+
+.dialog-overlay.show {
+    display: block;
+}
+
+.password-dialog {
+    display: none;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--panel-bg);
+    border: 1px solid var(--input-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-2xl);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    z-index: var(--z-dialog);
+    min-width: 320px;
+    max-width: 400px;
+}
+
+.password-dialog.show {
+    display: block;
+    animation: scaleIn 0.25s ease;
+}
+
+.password-dialog h3 {
+    margin: 0 0 var(--space-sm) 0;
+    font-size: 18px;
+    color: var(--text-color);
+}
+
+.password-dialog .author-info {
+    font-size: 13px;
+    opacity: 0.7;
+    margin-bottom: var(--space-lg);
+    color: var(--text-color);
+}
+
+.password-dialog input {
+    width: 100%;
+    padding: 10px var(--space-md);
+    margin-bottom: var(--space-lg);
+    border: 2px solid var(--input-border);
+    border-radius: var(--radius-sm);
+    background: var(--input-bg);
+    color: var(--text-color);
+    font-family: 'Courier New', monospace;
+    font-size: 16px;
+    letter-spacing: 2px;
+    font-weight: 600;
+    transition: all var(--transition-slow);
+}
+
+.password-dialog input:focus {
+    border-color: var(--btn-bg);
+    box-shadow: 0 0 0 3px rgba(30, 127, 139, 0.15);
+    outline: none;
+}
+
+.password-dialog input::placeholder {
+    font-family: 'Quicksand', sans-serif;
+    letter-spacing: normal;
+    font-weight: 500;
+    opacity: 0.5;
+}
+
+.password-dialog .dialog-buttons {
+    display: flex;
+    gap: var(--space-sm);
+    justify-content: flex-end;
+}
+
+.password-dialog button {
+    padding: var(--space-sm) var(--space-lg);
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-family: inherit;
+    font-weight: 600;
+    font-size: 14px;
+    transition: all var(--transition-fast);
+}
+
+.password-dialog .btn-submit {
+    background: var(--btn-bg);
+    color: var(--btn-text);
+}
+
+.password-dialog .btn-submit:hover {
+    background: var(--btn-hover);
+}
+
+.password-dialog .btn-cancel {
+    background: transparent;
+    color: var(--text-color);
+    border: 1px solid var(--input-border);
+}
+
+.password-dialog .btn-cancel:hover {
+    background: var(--hover-bg);
+}
+
+/* ========================================
+   THEME TOGGLE
+   ======================================== */
+
+.theme-row {
+    margin-top: auto;
+    padding-top: 14px;
+    border-top: 1px solid var(--input-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-md);
+}
+
+.theme-row label {
+    font-size: var(--font-size-base);
+    color: var(--text-color);
+    font-weight: 600;
+}
+
+.switch {
+    position: relative;
+    width: 54px;
+    height: 30px;
+}
+
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    inset: 0;
+    cursor: pointer;
+    background: #3f3f3f;
+    transition: 0.25s;
+    border-radius: 30px;
+}
+
+.slider:before {
+    content: "";
+    position: absolute;
+    height: 24px;
+    width: 24px;
+    left: 3px;
+    bottom: 3px;
+    background: #fff;
+    transition: 0.25s;
+    border-radius: 50%;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+input:checked+.slider {
+    background: var(--btn-bg);
+}
+
+input:checked+.slider:before {
+    transform: translateX(24px);
+}
+
+/* ========================================
+   ANIMATIONS
+   ======================================== */
+
+@keyframes tickGlow {
+
+    0%,
+    100% {
+        opacity: 0.6;
+    }
+
+    50% {
+        opacity: 1;
+    }
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes scaleIn {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.95);
+    }
+
+    to {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+    }
+}
+
+/* ========================================
+   RESPONSIVE DESIGN
+   ======================================== */
+
+@media (max-width: 768px) {
+    #sidebar {
+        position: fixed;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        transform: translateX(-100%);
+        box-shadow: var(--elev);
+    }
+
+    body.menu-open #sidebar {
+        transform: translateX(0);
+    }
+
+    body.menu-open #overlay {
+        display: block;
+    }
+
+    .hamburger {
+        display: inline-flex;
+    }
+
+    .desktop-actions {
+        display: none;
+    }
+
+    #exportToggle {
+        display: inline-flex;
+    }
+
+    .search-panel {
+        right: 10px;
+        left: 10px;
+        min-width: auto;
+    }
+
+    .editor-panel {
+        padding: var(--space-lg);
+    }
+}
+
+@media (min-width: 769px) {
+    .hamburger {
+        display: none;
+    }
+}
+
+@media (max-width: 500px) {
+    .author-field {
+        display: block !important;
+    }
+
+    #noteAuthor,
+    .password-wrapper {
+        width: 100%;
+        margin-bottom: var(--space-md);
+    }
+}
+
+/* ========================================
+   UTILITY CLASSES
+   ======================================== */
+
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--panel-bg);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--input-border);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--hover-bg);
+}
+
+
+.read-fs-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 4px;
+    border: none;
+    border-radius: 6px;
+    background-color: lightgrey;
+    cursor: pointer;
+    opacity: 0.5;
+}
+
+.read-fs-btn:hover {
+    opacity: 0.75;
+    background-color: lightgrey;
+}
+
+.read-fs-btn img {
+    width: 18px;
+    height: 18px;
+    pointer-events: none;
+}
