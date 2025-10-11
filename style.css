@@ -192,27 +192,28 @@ body {
    TYPOGRAPHY
    ======================================== */
 
-    .title {
-      margin: 0;
-      font-size: var(--font-size-lg);
-      font-weight: 700;
-      letter-spacing: 0.2px;
-      color: var(--text-color);
-    }
+.title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+    color: var(--text-color);
+}
 
-    .title-free h6 {
-      font-weight: 400;
-      margin: 0;
-    }
+.title-free h6 {
+    font-weight: 400;
+    margin: 0;
+}
 
-    .title-free h6 a {
-      color: #2a9aa8;
-      opacity: 0.5;
-      padding: 2px;
-      /* background-color: rgba(255, 0, 0, 0.116); */
-      border-radius: 3px;
-      text-decoration: none;
-    }
+.title-free h6 a {
+    color: #2a9aa8;
+    opacity: 0.5;
+    padding: 2px;
+    /* background-color: rgba(255, 0, 0, 0.116); */
+    border-radius: 3px;
+    text-decoration: none;
+}
+
 
 /* ========================================
    FORM ELEMENTS
