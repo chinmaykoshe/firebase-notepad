@@ -53,6 +53,14 @@ const dialogPasswordInput = document.getElementById('dialogPasswordInput');
 const dialogCancel = document.getElementById('dialogCancel');
 const dialogSubmit = document.getElementById('dialogSubmit');
 
+// Custom Alert/Confirm Dialog elements
+const customDialogOverlay = document.getElementById('customDialogOverlay');
+const customDialog = document.getElementById('customDialog');
+const customDialogTitle = document.getElementById('customDialogTitle');
+const customDialogMessage = document.getElementById('customDialogMessage');
+const customDialogCancel = document.getElementById('customDialogCancel');
+const customDialogConfirm = document.getElementById('customDialogConfirm');
+
 let allNotes = [];
 let isEditing = true;
 let currentNoteId = '';
@@ -64,6 +72,146 @@ let expirationCheckInterval = null;
 let pendingNoteToOpen = null;
 let pendingAction = null;
 let pendingNoteToDelete = null;
+
+// ============================================
+// CUSTOM ALERT/CONFIRM DIALOG SYSTEM
+// ============================================
+
+/**
+ * Show custom alert dialog
+ * @param {string} message - The message to display
+ * @param {string} title - Dialog title (default: "Alert")
+ * @param {string} type - Type: 'info', 'success', 'danger' (default: 'info')
+ * @returns {Promise<void>}
+ */
+function customAlert(message, title = "Alert", type = "info") {
+    return new Promise((resolve) => {
+        customDialogTitle.textContent = title;
+        customDialogMessage.textContent = message;
+        customDialogCancel.style.display = 'none';
+        customDialogConfirm.textContent = 'OK';
+
+        // Apply button styling based on type
+        customDialogConfirm.className = 'dialog-btn confirm-btn';
+        if (type === 'danger') {
+            customDialogConfirm.classList.add('danger');
+        } else if (type === 'success') {
+            customDialogConfirm.classList.add('success');
+        }
+
+        customDialogOverlay.classList.add('show');
+        customDialog.classList.add('show');
+        customDialogConfirm.focus();
+
+        const handleConfirm = () => {
+            hideCustomDialog();
+            resolve();
+        };
+
+        const handleKeydown = (e) => {
+            if (e.key === 'Enter' || e.key === 'Escape') {
+                e.preventDefault();
+                handleConfirm();
+            }
+        };
+
+        customDialogConfirm.onclick = handleConfirm;
+        customDialogOverlay.onclick = handleConfirm;
+        document.addEventListener('keydown', handleKeydown);
+
+        // Cleanup function
+        const cleanup = () => {
+            customDialogConfirm.onclick = null;
+            customDialogOverlay.onclick = null;
+            document.removeEventListener('keydown', handleKeydown);
+        };
+
+        // Store cleanup for later
+        customDialog.dataset.cleanup = cleanup;
+    });
+}
+
+/**
+ * Show custom confirm dialog
+ * @param {string} message - The message to display
+ * @param {string} title - Dialog title (default: "Confirm")
+ * @param {string} type - Type: 'info', 'danger' (default: 'info')
+ * @returns {Promise<boolean>} - true if confirmed, false if cancelled
+ */
+function customConfirm(message, title = "Confirm", type = "info") {
+    return new Promise((resolve) => {
+        customDialogTitle.textContent = title;
+        customDialogMessage.textContent = message;
+        customDialogCancel.style.display = 'inline-block';
+        customDialogCancel.textContent = 'Cancel';
+        customDialogConfirm.textContent = 'OK';
+
+        // Apply button styling based on type
+        customDialogConfirm.className = 'dialog-btn confirm-btn';
+        if (type === 'danger') {
+            customDialogConfirm.classList.add('danger');
+        } else if (type === 'success') {
+            customDialogConfirm.classList.add('success');
+        }
+
+        customDialogOverlay.classList.add('show');
+        customDialog.classList.add('show');
+        customDialogConfirm.focus();
+
+        const handleConfirm = () => {
+            hideCustomDialog();
+            resolve(true);
+        };
+
+        const handleCancel = () => {
+            hideCustomDialog();
+            resolve(false);
+        };
+
+        const handleKeydown = (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                handleConfirm();
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                handleCancel();
+            }
+        };
+
+        customDialogConfirm.onclick = handleConfirm;
+        customDialogCancel.onclick = handleCancel;
+        customDialogOverlay.onclick = handleCancel;
+        document.addEventListener('keydown', handleKeydown);
+
+        // Cleanup function
+        const cleanup = () => {
+            customDialogConfirm.onclick = null;
+            customDialogCancel.onclick = null;
+            customDialogOverlay.onclick = null;
+            document.removeEventListener('keydown', handleKeydown);
+        };
+
+        customDialog.dataset.cleanup = cleanup;
+    });
+}
+
+/**
+ * Hide custom dialog and cleanup event listeners
+ */
+function hideCustomDialog() {
+    customDialogOverlay.classList.remove('show');
+    customDialog.classList.remove('show');
+
+    // Run cleanup if it exists
+    if (typeof customDialog.dataset.cleanup === 'function') {
+        customDialog.dataset.cleanup();
+        delete customDialog.dataset.cleanup;
+    }
+}
+
+// ============================================
+// END CUSTOM DIALOG SYSTEM
+// ============================================
 
 function openMenu() { document.body.classList.add('menu-open'); }
 function closeMenu() { document.body.classList.remove('menu-open'); }
@@ -139,12 +287,12 @@ async function handlePasswordOpen(enteredPassword) {
             closeMenu();
             hidePasswordDialog();
         } else {
-            alert('Incorrect password!');
+            await customAlert('Incorrect password!', 'Error', 'danger');
             dialogPasswordInput.value = '';
             dialogPasswordInput.focus();
         }
     } catch (err) {
-        alert('Error loading note: ' + err.message);
+        await customAlert('Error loading note: ' + err.message, 'Error', 'danger');
     }
 }
 
@@ -157,7 +305,13 @@ async function handlePasswordDelete(enteredPassword) {
         const data = snap.data() || {};
 
         if (data.password === enteredPassword) {
-            if (!confirm(`Are you absolutely sure you want to delete "${pendingNoteToDelete.id}"?`)) {
+            const confirmed = await customConfirm(
+                `Are you absolutely sure you want to delete "${pendingNoteToDelete.id}"?`,
+                'Confirm Deletion',
+                'danger'
+            );
+
+            if (!confirmed) {
                 hidePasswordDialog();
                 return;
             }
@@ -171,14 +325,14 @@ async function handlePasswordDelete(enteredPassword) {
             }
 
             hidePasswordDialog();
-            alert(`"${pendingNoteToDelete.id}" deleted successfully`);
+            await customAlert(`"${pendingNoteToDelete.id}" deleted successfully`, 'Success', 'success');
         } else {
-            alert('Incorrect password!');
+            await customAlert('Incorrect password!', 'Error', 'danger');
             dialogPasswordInput.value = '';
             dialogPasswordInput.focus();
         }
     } catch (err) {
-        alert('Delete failed: ' + err.message);
+        await customAlert('Delete failed: ' + err.message, 'Error', 'danger');
         hidePasswordDialog();
     }
 }
@@ -191,18 +345,15 @@ dialogPasswordInput.addEventListener('keydown', (e) => {
     }
 });
 
-// NEW: Open note directly if no password is set
+// Open note directly if no password is set
 async function openNote(noteData) {
     try {
         const snap = await notesColRef.doc(noteData.id).get();
         const data = snap.data() || {};
 
-        // Check if note has a password
         if (data.password && data.password.trim() !== '') {
-            // Note is password-protected, show dialog
             showPasswordDialog(noteData, 'open');
         } else {
-            // Note is open (no password), open directly
             currentNoteId = noteData.id;
             currentNotePassword = '';
             noteNameInput.value = noteData.id;
@@ -219,23 +370,26 @@ async function openNote(noteData) {
             closeMenu();
         }
     } catch (err) {
-        alert('Error loading note: ' + err.message);
+        await customAlert('Error loading note: ' + err.message, 'Error', 'danger');
     }
 }
 
-// NEW: Delete note with conditional password check
+// Delete note with conditional password check
 async function deleteNoteFromList(noteData) {
     try {
         const snap = await notesColRef.doc(noteData.id).get();
         const data = snap.data() || {};
 
-        // Check if note has a password
         if (data.password && data.password.trim() !== '') {
-            // Note is password-protected, show dialog
             showPasswordDialog(noteData, 'delete');
         } else {
-            // Note is open (no password), delete directly with confirmation
-            if (!confirm(`Delete "${noteData.id}"? (No password required)`)) return;
+            const confirmed = await customConfirm(
+                `Delete "${noteData.id}"? (No password required)`,
+                'Confirm Deletion',
+                'danger'
+            );
+
+            if (!confirmed) return;
 
             await notesColRef.doc(noteData.id).delete();
             allNotes = allNotes.filter(x => x.id !== noteData.id);
@@ -245,10 +399,10 @@ async function deleteNoteFromList(noteData) {
                 clearEditor();
             }
 
-            alert(`"${noteData.id}" deleted successfully`);
+            await customAlert(`"${noteData.id}" deleted successfully`, 'Success', 'success');
         }
     } catch (err) {
-        alert('Delete failed: ' + err.message);
+        await customAlert('Delete failed: ' + err.message, 'Error', 'danger');
     }
 }
 
@@ -534,14 +688,12 @@ function renderList(list) {
         const authorDisplay = document.createElement('div');
         authorDisplay.className = 'note-author-display';
 
-        // Show lock icon if password protected
         const lockIcon = n.password && n.password.trim() !== '' ? '🔒 ' : '🔓 ';
         authorDisplay.textContent = `${lockIcon}By: ${n.author || 'Unknown'}`;
 
         contentContainer.appendChild(title);
         contentContainer.appendChild(authorDisplay);
 
-        // UPDATED: Use new openNote function
         contentContainer.addEventListener('click', async (e) => {
             e.stopPropagation();
             await openNote(n);
@@ -615,7 +767,6 @@ function renderList(list) {
             if (!menu.contains(e.target) && e.target !== kebab) closeKebabMenu();
         });
 
-        // UPDATED: Use new deleteNoteFromList function
         deleteItem.addEventListener('click', async (e) => {
             e.stopPropagation();
             closeKebabMenu();
@@ -639,9 +790,8 @@ function filterNotes(q) {
 
 async function loadList() {
     try {
-        const snap = await notesColRef// If ALL docs have 'content', you can do:
+        const snap = await notesColRef
             .orderBy('content').orderBy(firebase.firestore.FieldPath.documentId())
-            // But this still won't work if updatedAt is what you want
             .get();
         allNotes = [];
         snap.forEach(d => {
@@ -664,10 +814,16 @@ async function loadList() {
 async function saveNote() {
     const id = noteNameInput.value.trim();
     const author = noteAuthorInput.value.trim();
-    const password = notePasswordInput.value.trim(); // Now optional
+    const password = notePasswordInput.value.trim();
 
-    if (!id) { alert('Enter a note name'); return; }
-    if (!author) { alert('Enter author name'); return; }
+    if (!id) {
+        await customAlert('Enter a note name', 'Validation Error', 'danger');
+        return;
+    }
+    if (!author) {
+        await customAlert('Enter author name', 'Validation Error', 'danger');
+        return;
+    }
 
     try {
         const now = new Date();
@@ -676,7 +832,7 @@ async function saveNote() {
         await notesColRef.doc(id).set({
             content: noteContent.value || '',
             author: author,
-            password: password, // Can be empty string for open notes
+            password: password,
             expiry: firebase.firestore.Timestamp.fromDate(expiry),
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
@@ -702,15 +858,18 @@ async function saveNote() {
         currentNotePassword = password;
 
         const protectionStatus = password ? 'password-protected' : 'open (no password)';
-        alert(`Note saved as ${protectionStatus} (expires in 24 hours)`);
+        await customAlert(`Note saved as ${protectionStatus} (expires in 24 hours)`, 'Success', 'success');
     } catch (e) {
-        alert('Save failed: ' + e.message);
+        await customAlert('Save failed: ' + e.message, 'Error', 'danger');
     }
 }
 
 async function deleteOpenNote() {
     const id = currentNoteId || noteNameInput.value.trim();
-    if (!id) { alert('No note open'); return; }
+    if (!id) {
+        await customAlert('No note open', 'Error', 'danger');
+        return;
+    }
 
     const password = currentNotePassword || notePasswordInput.value.trim();
 
@@ -718,25 +877,24 @@ async function deleteOpenNote() {
         const snap = await notesColRef.doc(id).get();
         const data = snap.data() || {};
 
-        // Check if note has password protection
         if (data.password && data.password.trim() !== '') {
-            // Password-protected note
             if (data.password !== password) {
-                alert('Incorrect password!');
+                await customAlert('Incorrect password!', 'Error', 'danger');
                 return;
             }
         }
 
-        if (!confirm(`Delete "${id}"?`)) return;
+        const confirmed = await customConfirm(`Delete "${id}"?`, 'Confirm Deletion', 'danger');
+        if (!confirmed) return;
 
         await notesColRef.doc(id).delete();
         allNotes = allNotes.filter(n => n.id !== id);
         renderList(filterNotes(searchNotesInput.value));
         clearEditor();
         closeExportMenu();
-        alert(`"${id}" deleted successfully`);
+        await customAlert(`"${id}" deleted successfully`, 'Success', 'success');
     } catch (e) {
-        alert('Delete failed: ' + e.message);
+        await customAlert('Delete failed: ' + e.message, 'Error', 'danger');
     }
 }
 
@@ -813,7 +971,7 @@ async function autoDeleteExpiredNotes() {
 
 async function extendNoteLife(noteId) {
     if (!noteId) {
-        alert('No note selected');
+        await customAlert('No note selected', 'Error', 'danger');
         return;
     }
 
@@ -825,14 +983,13 @@ async function extendNoteLife(noteId) {
             const data = docSnap.data();
             const password = currentNotePassword || notePasswordInput.value.trim();
 
-            // Check if note has password protection
             if (data.password && data.password.trim() !== '') {
                 if (!password) {
-                    alert('Password required to extend note');
+                    await customAlert('Password required to extend note', 'Error', 'danger');
                     return;
                 }
                 if (data.password !== password) {
-                    alert('Incorrect password!');
+                    await customAlert('Incorrect password!', 'Error', 'danger');
                     return;
                 }
             }
@@ -851,14 +1008,14 @@ async function extendNoteLife(noteId) {
             }
 
             renderList(filterNotes(searchNotesInput.value));
-            alert("Note extended by 24 hours!");
+            await customAlert("Note extended by 24 hours!", 'Success', 'success');
             closeExportMenu();
         } else {
-            alert('Note not found');
+            await customAlert('Note not found', 'Error', 'danger');
         }
     } catch (e) {
         console.error("Error extending note life:", e);
-        alert('Failed to extend note: ' + e.message);
+        await customAlert('Failed to extend note: ' + e.message, 'Error', 'danger');
     }
 }
 
@@ -872,14 +1029,14 @@ txtBtnMobile.addEventListener('click', exportTXT);
 pdfBtnMobile.addEventListener('click', exportPDF);
 deleteOpenBtnMobile.addEventListener('click', deleteOpenNote);
 
-extendBtn.addEventListener('click', () => {
-    if (currentNoteId) extendNoteLife(currentNoteId);
-    else alert('Open a note first');
+extendBtn.addEventListener('click', async () => {
+    if (currentNoteId) await extendNoteLife(currentNoteId);
+    else await customAlert('Open a note first', 'Error', 'danger');
 });
 
-extendBtnMobile.addEventListener('click', () => {
-    if (currentNoteId) extendNoteLife(currentNoteId);
-    else alert('Open a note first');
+extendBtnMobile.addEventListener('click', async () => {
+    if (currentNoteId) await extendNoteLife(currentNoteId);
+    else await customAlert('Open a note first', 'Error', 'danger');
 });
 
 editToggle.addEventListener('click', () => {
@@ -916,22 +1073,18 @@ themeToggle.addEventListener('change', () => {
     }
 });
 
-
-// Grab elements
+// Fullscreen functionality
 const textareaContainer = document.querySelector('.textarea-container');
 const readFsToggle = document.getElementById('readFsToggle');
 const readFsIcon = document.getElementById('readFsIcon');
 
-// Paths to the provided icons (adjust path if needed)
 const ICON_EXPAND = 'expand.svg';
 const ICON_COLLAPSE = 'collapse.svg';
 
-// Helper: is container in fullscreen
 function isContainerFullscreen() {
     return document.fullscreenElement === textareaContainer;
 }
 
-// Helper: update icon + labels
 function updateReadFsIcon() {
     if (isContainerFullscreen()) {
         readFsIcon.src = ICON_COLLAPSE;
@@ -944,7 +1097,6 @@ function updateReadFsIcon() {
     }
 }
 
-// Toggle Fullscreen on this container
 async function toggleReadFullscreen() {
     try {
         if (!isContainerFullscreen()) {
@@ -965,11 +1117,14 @@ readFsToggle.addEventListener('click', (e) => {
     toggleReadFullscreen();
 });
 
-// Keep icon in sync if user presses Esc
 document.addEventListener('fullscreenchange', updateReadFsIcon);
 
+newFileBtn.addEventListener('click', () => {
+    clearEditor();
+    noteNameInput.focus();
+    closeMenu();
+});
 
-newFileBtn.addEventListener('click', () => { clearEditor(); noteNameInput.focus(); closeMenu(); });
 searchNotesInput.addEventListener('input', () => renderList(filterNotes(searchNotesInput.value)));
 
 // Initialize

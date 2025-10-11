@@ -1052,3 +1052,154 @@ input:checked+.slider:before {
     height: 18px;
     pointer-events: none;
 }
+
+.dialog-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    display: none;
+    z-index: 9998;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.dialog-overlay.show {
+    display: block;
+    opacity: 1;
+}
+
+.dialog-box {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.9);
+    background: var(--bg-color, #1e1e1e);
+    border: 1px solid var(--border-color, #3a3a3a);
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    max-width: 450px;
+    width: 90%;
+    z-index: 9999;
+    display: none;
+    opacity: 0;
+    transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+.dialog-box.show {
+    display: block;
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+}
+
+.dialog-header {
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid var(--border-color, #3a3a3a);
+}
+
+.dialog-header h3 {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text-color, #ffffff);
+}
+
+.dialog-body {
+    padding: 24px;
+}
+
+.dialog-body p {
+    margin: 0;
+    font-size: 1rem;
+    line-height: 1.6;
+    color: var(--text-secondary, #b0b0b0);
+    word-wrap: break-word;
+}
+
+.dialog-footer {
+    padding: 16px 24px 20px;
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    border-top: 1px solid var(--border-color, #3a3a3a);
+}
+
+.dialog-btn {
+    padding: 10px 24px;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    outline: none;
+}
+
+.dialog-btn:focus {
+    box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.5);
+}
+
+.cancel-btn {
+    background: var(--bg-secondary, #2a2a2a);
+    color: var(--text-color, #ffffff);
+}
+
+.cancel-btn:hover {
+    background: var(--bg-hover, #3a3a3a);
+}
+
+.confirm-btn {
+    background: #4a9eff;
+    color: #ffffff;
+}
+
+.confirm-btn:hover {
+    background: #3a8eef;
+}
+
+.confirm-btn.danger {
+    background: #e74c3c;
+}
+
+.confirm-btn.danger:hover {
+    background: #c0392b;
+}
+
+.confirm-btn.success {
+    background: #2ecc71;
+}
+
+.confirm-btn.success:hover {
+    background: #27ae60;
+}
+
+/* Light mode adjustments */
+body.light-mode .dialog-box {
+    background: #ffffff;
+    border-color: #e0e0e0;
+}
+
+body.light-mode .dialog-header h3 {
+    color: #1a1a1a;
+}
+
+body.light-mode .dialog-body p {
+    color: #4a4a4a;
+}
+
+body.light-mode .dialog-header,
+body.light-mode .dialog-footer {
+    border-color: #e0e0e0;
+}
+
+body.light-mode .cancel-btn {
+    background: #f5f5f5;
+    color: #1a1a1a;
+}
+
+body.light-mode .cancel-btn:hover {
+    background: #e0e0e0;
+}
