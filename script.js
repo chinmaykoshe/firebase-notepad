@@ -507,6 +507,10 @@ function setEditing(editing) {
     noteNameInput.style.display = editing ? '' : 'none';
     noteAuthorInput.parentElement.style.display = editing ? 'flex' : 'none';
     document.getElementById('buttons').style.display = editing ? 'flex' : 'none';
+
+    if (editing) {
+        noteContent.focus(); // Focus on content for immediate multi-line editing (Enter for newlines)
+    }
 }
 
 function clearEditor() {
@@ -1046,7 +1050,9 @@ editToggle.addEventListener('click', () => {
         noteNameInput.focus();
     } else {
         setEditing(!isEditing);
-        if (isEditing) noteNameInput.focus();
+        if (isEditing) {
+            noteContent.focus(); // Focus on content for editing with newlines
+        }
     }
 });
 
