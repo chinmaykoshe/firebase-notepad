@@ -831,7 +831,7 @@ async function saveNote() {
 
     try {
         const now = new Date();
-        const expiry = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+        const expiry = new Date(now.getTime() + 4 * 24 * 60 * 60 * 1000);
 
         await notesColRef.doc(id).set({
             content: noteContent.value || '',
