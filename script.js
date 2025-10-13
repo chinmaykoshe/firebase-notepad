@@ -863,6 +863,8 @@ async function saveNote() {
 
         const protectionStatus = password ? 'password-protected' : 'open (no password)';
         await customAlert(`Note saved as ${protectionStatus} (expires in 4 days)`, 'Success', 'success');
+
+        setEditing(false);
     } catch (e) {
         await customAlert('Save failed: ' + e.message, 'Error', 'danger');
     }
