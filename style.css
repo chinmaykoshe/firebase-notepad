@@ -588,6 +588,10 @@ textarea {
     border-radius: var(--radius-md);
 }
 
+.textarea-container::selection {
+    background-color: #2a9aa8;
+}
+
 #highlightBackdrop {
     position: absolute;
     top: 0;
