@@ -7,13 +7,12 @@ const firebaseConfig = {
     appId: "1:185707122313:web:45b14964453e8139cb8058",
     measurementId: "G-ELZ4NBL705"
 };
+
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
-
 const notesColRef = db.collection('notes');
 
 const overlay = document.getElementById('overlay');
-const sidebar = document.getElementById('sidebar');
 const hamburgerBtn = document.getElementById('hamburgerBtn');
 const notesUl = document.getElementById('notesUl');
 const newFileBtn = document.getElementById('newFileBtn');
@@ -23,7 +22,6 @@ const noteNameInput = document.getElementById('noteName');
 const noteAuthorInput = document.getElementById('noteAuthor');
 const notePasswordInput = document.getElementById('notePassword');
 const noteContent = document.getElementById('noteContent');
-const highlightBackdrop = document.getElementById('highlightBackdrop');
 const saveBtn = document.getElementById('saveBtn');
 const txtBtn = document.getElementById('txtBtn');
 const pdfBtn = document.getElementById('pdfBtn');
@@ -43,8 +41,9 @@ const nextMatch = document.getElementById('nextMatch');
 const matchInfo = document.getElementById('matchInfo');
 const extendBtn = document.getElementById('extendBtn');
 const extendBtnMobile = document.getElementById('extendBtnMobile');
+const insertTableBtn = document.getElementById('insertTableBtn');
+const insertTableBtnMobile = document.getElementById('insertTableBtnMobile');
 
-// Password dialog elements
 const dialogOverlay = document.getElementById('dialogOverlay');
 const passwordDialog = document.getElementById('passwordDialog');
 const dialogTitle = document.getElementById('dialogTitle');
@@ -53,7 +52,6 @@ const dialogPasswordInput = document.getElementById('dialogPasswordInput');
 const dialogCancel = document.getElementById('dialogCancel');
 const dialogSubmit = document.getElementById('dialogSubmit');
 
-// Custom Alert/Confirm Dialog elements
 const customDialogOverlay = document.getElementById('customDialogOverlay');
 const customDialog = document.getElementById('customDialog');
 const customDialogTitle = document.getElementById('customDialogTitle');
@@ -61,46 +59,64 @@ const customDialogMessage = document.getElementById('customDialogMessage');
 const customDialogCancel = document.getElementById('customDialogCancel');
 const customDialogConfirm = document.getElementById('customDialogConfirm');
 
+const textareaContainer = document.querySelector('.textarea-container');
+const readFsToggle = document.getElementById('readFsToggle');
+const readFsIcon = document.getElementById('readFsIcon');
+
+const ICON_EXPAND = 'expand.svg';
+const ICON_COLLAPSE = 'collapse.svg';
+
 let allNotes = [];
 let isEditing = true;
 let currentNoteId = '';
 let currentNotePassword = '';
 let currentSearchTerm = '';
-let matchPositions = [];
+let searchMatches = [];
 let currentMatchIndex = -1;
 let expirationCheckInterval = null;
 let pendingNoteToOpen = null;
 let pendingAction = null;
 let pendingNoteToDelete = null;
+let exportOutsideAbort = null;
+let customDialogCleanup = null;
 
-// ============================================
-// CUSTOM ALERT/CONFIRM DIALOG SYSTEM
-// ============================================
+function openMenu() {
+    document.body.classList.add('menu-open');
+}
 
-/**
- * Show custom alert dialog
- * @param {string} message - The message to display
- * @param {string} title - Dialog title (default: "Alert")
- * @param {string} type - Type: 'info', 'success', 'danger' (default: 'info')
- * @returns {Promise<void>}
- */
-function customAlert(message, title = "Alert", type = "info") {
+function closeMenu() {
+    document.body.classList.remove('menu-open');
+}
+
+hamburgerBtn.addEventListener('click', openMenu);
+overlay.addEventListener('click', closeMenu);
+
+function showCustomDialogBase() {
+    customDialogOverlay.classList.add('show');
+    customDialog.classList.add('show');
+}
+
+function hideCustomDialog() {
+    customDialogOverlay.classList.remove('show');
+    customDialog.classList.remove('show');
+    if (typeof customDialogCleanup === 'function') {
+        customDialogCleanup();
+        customDialogCleanup = null;
+    }
+}
+
+function customAlert(message, title = 'Alert', type = 'info') {
     return new Promise((resolve) => {
         customDialogTitle.textContent = title;
         customDialogMessage.textContent = message;
         customDialogCancel.style.display = 'none';
         customDialogConfirm.textContent = 'OK';
-
-        // Apply button styling based on type
         customDialogConfirm.className = 'dialog-btn confirm-btn';
-        if (type === 'danger') {
-            customDialogConfirm.classList.add('danger');
-        } else if (type === 'success') {
-            customDialogConfirm.classList.add('success');
-        }
 
-        customDialogOverlay.classList.add('show');
-        customDialog.classList.add('show');
+        if (type === 'danger') customDialogConfirm.classList.add('danger');
+        if (type === 'success') customDialogConfirm.classList.add('success');
+
+        showCustomDialogBase();
         customDialogConfirm.focus();
 
         const handleConfirm = () => {
@@ -119,51 +135,35 @@ function customAlert(message, title = "Alert", type = "info") {
         customDialogOverlay.onclick = handleConfirm;
         document.addEventListener('keydown', handleKeydown);
 
-        // Cleanup function
-        const cleanup = () => {
+        customDialogCleanup = () => {
             customDialogConfirm.onclick = null;
             customDialogOverlay.onclick = null;
             document.removeEventListener('keydown', handleKeydown);
         };
-
-        // Store cleanup for later
-        customDialog.dataset.cleanup = cleanup;
     });
 }
 
-/**
- * Show custom confirm dialog
- * @param {string} message - The message to display
- * @param {string} title - Dialog title (default: "Confirm")
- * @param {string} type - Type: 'info', 'danger' (default: 'info')
- * @returns {Promise<boolean>} - true if confirmed, false if cancelled
- */
-function customConfirm(message, title = "Confirm", type = "info") {
+function customConfirm(message, title = 'Confirm', type = 'info') {
     return new Promise((resolve) => {
         customDialogTitle.textContent = title;
         customDialogMessage.textContent = message;
         customDialogCancel.style.display = 'inline-block';
         customDialogCancel.textContent = 'Cancel';
         customDialogConfirm.textContent = 'OK';
-
-        // Apply button styling based on type
         customDialogConfirm.className = 'dialog-btn confirm-btn';
-        if (type === 'danger') {
-            customDialogConfirm.classList.add('danger');
-        } else if (type === 'success') {
-            customDialogConfirm.classList.add('success');
-        }
 
-        customDialogOverlay.classList.add('show');
-        customDialog.classList.add('show');
+        if (type === 'danger') customDialogConfirm.classList.add('danger');
+        if (type === 'success') customDialogConfirm.classList.add('success');
+
+        showCustomDialogBase();
         customDialogConfirm.focus();
 
-        const handleConfirm = () => {
+        const confirm = () => {
             hideCustomDialog();
             resolve(true);
         };
 
-        const handleCancel = () => {
+        const cancel = () => {
             hideCustomDialog();
             resolve(false);
         };
@@ -171,54 +171,27 @@ function customConfirm(message, title = "Confirm", type = "info") {
         const handleKeydown = (e) => {
             if (e.key === 'Enter') {
                 e.preventDefault();
-                handleConfirm();
+                confirm();
             } else if (e.key === 'Escape') {
                 e.preventDefault();
-                handleCancel();
+                cancel();
             }
         };
 
-        customDialogConfirm.onclick = handleConfirm;
-        customDialogCancel.onclick = handleCancel;
-        customDialogOverlay.onclick = handleCancel;
+        customDialogConfirm.onclick = confirm;
+        customDialogCancel.onclick = cancel;
+        customDialogOverlay.onclick = cancel;
         document.addEventListener('keydown', handleKeydown);
 
-        // Cleanup function
-        const cleanup = () => {
+        customDialogCleanup = () => {
             customDialogConfirm.onclick = null;
             customDialogCancel.onclick = null;
             customDialogOverlay.onclick = null;
             document.removeEventListener('keydown', handleKeydown);
         };
-
-        customDialog.dataset.cleanup = cleanup;
     });
 }
 
-/**
- * Hide custom dialog and cleanup event listeners
- */
-function hideCustomDialog() {
-    customDialogOverlay.classList.remove('show');
-    customDialog.classList.remove('show');
-
-    // Run cleanup if it exists
-    if (typeof customDialog.dataset.cleanup === 'function') {
-        customDialog.dataset.cleanup();
-        delete customDialog.dataset.cleanup;
-    }
-}
-
-// ============================================
-// END CUSTOM DIALOG SYSTEM
-// ============================================
-
-function openMenu() { document.body.classList.add('menu-open'); }
-function closeMenu() { document.body.classList.remove('menu-open'); }
-hamburgerBtn.addEventListener('click', openMenu);
-overlay.addEventListener('click', closeMenu);
-
-// Enhanced Password Dialog Functions
 function showPasswordDialog(noteData, action = 'open') {
     pendingAction = action;
 
@@ -226,11 +199,13 @@ function showPasswordDialog(noteData, action = 'open') {
         pendingNoteToOpen = noteData;
         dialogTitle.textContent = `Open: ${noteData.id}`;
         dialogAuthor.textContent = `By: ${noteData.author || 'Unknown'}`;
-    } else if (action === 'delete') {
+        dialogSubmit.textContent = 'Open';
+    } else {
         pendingNoteToDelete = noteData;
         dialogTitle.textContent = `Delete: ${noteData.id}`;
-        dialogAuthor.textContent = `⚠️ This action cannot be undone`;
+        dialogAuthor.textContent = 'This action cannot be undone';
         dialogAuthor.style.color = '#e74c3c';
+        dialogSubmit.textContent = 'Delete';
     }
 
     dialogPasswordInput.value = '';
@@ -254,7 +229,6 @@ dialogOverlay.addEventListener('click', hidePasswordDialog);
 
 dialogSubmit.addEventListener('click', async () => {
     const enteredPassword = dialogPasswordInput.value;
-
     if (pendingAction === 'open' && pendingNoteToOpen) {
         await handlePasswordOpen(enteredPassword);
     } else if (pendingAction === 'delete' && pendingNoteToDelete) {
@@ -262,7 +236,380 @@ dialogSubmit.addEventListener('click', async () => {
     }
 });
 
-// Handle password verification for opening notes
+dialogPasswordInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') dialogSubmit.click();
+    if (e.key === 'Escape') hidePasswordDialog();
+});
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function normalizeEditorHtml(html) {
+    const cleaned = (html || '')
+        .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
+        .replace(/\son\w+="[^"]*"/gi, '')
+        .replace(/\son\w+='[^']*'/gi, '')
+        .trim();
+
+    return cleaned === '<br>' ? '' : cleaned;
+}
+
+function getEditorHtml() {
+    return normalizeEditorHtml(noteContent.innerHTML);
+}
+
+function getEditorText() {
+    return (noteContent.innerText || '').replace(/\n{3,}/g, '\n\n').trimEnd();
+}
+
+function setEditorHtml(html) {
+    noteContent.innerHTML = normalizeEditorHtml(html);
+}
+
+function clearSearchHighlights() {
+    const marks = noteContent.querySelectorAll('mark.search-hit');
+    marks.forEach((mark) => {
+        const parent = mark.parentNode;
+        while (mark.firstChild) parent.insertBefore(mark.firstChild, mark);
+        parent.removeChild(mark);
+        parent.normalize();
+    });
+    searchMatches = [];
+    currentMatchIndex = -1;
+    matchInfo.textContent = 'No matches';
+    prevMatch.disabled = true;
+    nextMatch.disabled = true;
+}
+
+function collectTextNodes(root) {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+        acceptNode(node) {
+            if (!node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+            if (node.parentElement && node.parentElement.closest('mark.search-hit')) return NodeFilter.FILTER_REJECT;
+            return NodeFilter.FILTER_ACCEPT;
+        }
+    });
+    const nodes = [];
+    let current;
+    while ((current = walker.nextNode())) nodes.push(current);
+    return nodes;
+}
+
+function applyHighlights() {
+    clearSearchHighlights();
+    if (!currentSearchTerm) return;
+
+    const term = currentSearchTerm.toLowerCase();
+    const textNodes = collectTextNodes(noteContent);
+
+    for (const node of textNodes) {
+        const text = node.nodeValue;
+        const lower = text.toLowerCase();
+        let from = 0;
+        let foundAny = false;
+        const frag = document.createDocumentFragment();
+
+        while (true) {
+            const index = lower.indexOf(term, from);
+            if (index === -1) break;
+
+            foundAny = true;
+            if (index > from) {
+                frag.appendChild(document.createTextNode(text.slice(from, index)));
+            }
+
+            const mark = document.createElement('mark');
+            mark.className = 'search-hit';
+            mark.textContent = text.slice(index, index + term.length);
+            frag.appendChild(mark);
+            searchMatches.push(mark);
+
+            from = index + term.length;
+        }
+
+        if (foundAny) {
+            if (from < text.length) {
+                frag.appendChild(document.createTextNode(text.slice(from)));
+            }
+            node.parentNode.replaceChild(frag, node);
+        }
+    }
+
+    if (!searchMatches.length) {
+        matchInfo.textContent = 'No matches';
+        prevMatch.disabled = true;
+        nextMatch.disabled = true;
+        return;
+    }
+
+    currentMatchIndex = 0;
+    updateCurrentMatch();
+    prevMatch.disabled = false;
+    nextMatch.disabled = false;
+}
+
+function updateCurrentMatch() {
+    searchMatches.forEach((m, idx) => {
+        m.classList.toggle('current-match', idx === currentMatchIndex);
+    });
+
+    if (searchMatches.length) {
+        matchInfo.textContent = `${currentMatchIndex + 1} / ${searchMatches.length}`;
+        searchMatches[currentMatchIndex].scrollIntoView({ block: 'center', behavior: 'smooth' });
+    } else {
+        matchInfo.textContent = 'No matches';
+    }
+}
+
+function goToPrevMatch() {
+    if (!searchMatches.length) return;
+    currentMatchIndex = currentMatchIndex <= 0 ? searchMatches.length - 1 : currentMatchIndex - 1;
+    updateCurrentMatch();
+}
+
+function goToNextMatch() {
+    if (!searchMatches.length) return;
+    currentMatchIndex = currentMatchIndex >= searchMatches.length - 1 ? 0 : currentMatchIndex + 1;
+    updateCurrentMatch();
+}
+
+function placeCaretInside(el) {
+    const range = document.createRange();
+    const selection = window.getSelection();
+    range.selectNodeContents(el);
+    range.collapse(false);
+    selection.removeAllRanges();
+    selection.addRange(range);
+}
+
+function insertNodeAtCursor(node) {
+    const sel = window.getSelection();
+    if (!sel.rangeCount) {
+        noteContent.appendChild(node);
+        placeCaretInside(noteContent);
+        return;
+    }
+
+    const range = sel.getRangeAt(0);
+    range.deleteContents();
+    range.insertNode(node);
+    range.setStartAfter(node);
+    range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
+}
+
+function insertHtmlAtCursor(html) {
+    const temp = document.createElement('div');
+    temp.innerHTML = html;
+    const fragment = document.createDocumentFragment();
+    let lastNode = null;
+
+    while (temp.firstChild) {
+        lastNode = fragment.appendChild(temp.firstChild);
+    }
+
+    const sel = window.getSelection();
+    if (!sel.rangeCount) {
+        noteContent.appendChild(fragment);
+        if (lastNode) placeCaretInside(noteContent);
+        return;
+    }
+
+    const range = sel.getRangeAt(0);
+    range.deleteContents();
+    range.insertNode(fragment);
+
+    if (lastNode) {
+        range.setStartAfter(lastNode);
+        range.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(range);
+    }
+}
+
+function isInsideEditorSelection() {
+    const sel = window.getSelection();
+    if (!sel.rangeCount) return false;
+    const range = sel.getRangeAt(0);
+    return noteContent.contains(range.commonAncestorContainer);
+}
+
+function setEditing(editing) {
+    isEditing = editing;
+    noteContent.contentEditable = editing ? 'true' : 'false';
+    noteContent.classList.toggle('readonly', !editing);
+    noteNameInput.style.display = editing ? '' : 'none';
+    noteAuthorInput.parentElement.style.display = editing ? 'flex' : 'none';
+    document.getElementById('buttons').style.display = editing ? 'flex' : 'none';
+
+    if (editing) {
+        noteContent.focus();
+        placeCaretInside(noteContent);
+    }
+}
+
+function clearEditor() {
+    currentNoteId = '';
+    currentNotePassword = '';
+    noteNameInput.value = '';
+    noteAuthorInput.value = '';
+    notePasswordInput.value = '';
+    setEditorHtml('');
+    clearSearchHighlights();
+    currentSearchTerm = '';
+    findBoxDropdown.value = '';
+    setEditing(true);
+}
+
+function createHtmlTable(rows, cols, data = []) {
+    const table = document.createElement('table');
+    table.className = 'freenote-table';
+
+    for (let r = 0; r < rows; r++) {
+        const tr = document.createElement('tr');
+
+        for (let c = 0; c < cols; c++) {
+            const cell = document.createElement(r === 0 ? 'th' : 'td');
+            cell.textContent = data[r]?.[c] ?? (r === 0 ? `Col ${c + 1}` : '');
+            tr.appendChild(cell);
+        }
+
+        table.appendChild(tr);
+    }
+
+    return table.outerHTML;
+}
+
+function parsePlainTextTable(text) {
+    const lines = text.replace(/\r/g, '').trim().split('\n');
+    const rows = lines.map(line => line.split('\t'));
+    if (rows.length < 2) return null;
+
+    const maxCols = Math.max(...rows.map(r => r.length));
+    if (maxCols < 2) return null;
+
+    rows.forEach(r => {
+        while (r.length < maxCols) r.push('');
+    });
+
+    return rows;
+}
+
+function extractCellsFromHtmlTable(table) {
+    const rows = [...table.querySelectorAll('tr')];
+    return rows.map(row => {
+        const cells = [...row.querySelectorAll('th,td')];
+        return cells.map(cell => cell.innerText.trim());
+    });
+}
+
+function cleanPastedTable(table) {
+    const rows = [...table.querySelectorAll('tr')];
+    rows.forEach((row, rowIndex) => {
+        const cells = [...row.children];
+        cells.forEach((cell) => {
+            const newCell = document.createElement(rowIndex === 0 ? 'th' : 'td');
+            newCell.innerHTML = cell.innerHTML
+                .replace(/<meta[^>]*>/gi, '')
+                .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, '')
+                .trim();
+            cell.replaceWith(newCell);
+        });
+    });
+    table.removeAttribute('style');
+    table.className = 'freenote-table';
+    return table;
+}
+
+function insertGeneratedTable(rows, cols) {
+    insertHtmlAtCursor(createHtmlTable(rows, cols));
+}
+
+async function showInsertTableDialog() {
+    if (!isEditing) {
+        await customAlert('Switch to edit mode first', 'Error', 'danger');
+        return null;
+    }
+
+    const dialogHTML = `
+        <div style="display:flex; gap:16px; align-items:center; justify-content:center; margin-top:8px;">
+            <label style="display:flex; flex-direction:column; align-items:center; gap:4px; font-size:14px; color:var(--text-color);">
+                Rows
+                <input id="tableRowsInput" type="number" min="1" max="50" value="3"
+                    style="width:64px; padding:8px; text-align:center; border:1px solid var(--input-border); border-radius:8px; background:var(--input-bg); color:var(--text-color); font-size:16px; font-family:inherit;" />
+            </label>
+            <span style="font-size:20px; opacity:0.5; margin-top:18px;">×</span>
+            <label style="display:flex; flex-direction:column; align-items:center; gap:4px; font-size:14px; color:var(--text-color);">
+                Columns
+                <input id="tableColsInput" type="number" min="1" max="20" value="3"
+                    style="width:64px; padding:8px; text-align:center; border:1px solid var(--input-border); border-radius:8px; background:var(--input-bg); color:var(--text-color); font-size:16px; font-family:inherit;" />
+            </label>
+        </div>
+    `;
+
+    return new Promise((resolve) => {
+        customDialogTitle.textContent = 'Insert Table';
+        customDialogMessage.innerHTML = dialogHTML;
+        customDialogCancel.style.display = 'inline-block';
+        customDialogCancel.textContent = 'Cancel';
+        customDialogConfirm.textContent = 'Insert';
+        customDialogConfirm.className = 'dialog-btn confirm-btn';
+
+        showCustomDialogBase();
+
+        setTimeout(() => {
+            document.getElementById('tableRowsInput')?.focus();
+        }, 50);
+
+        const confirm = () => {
+            const rows = Math.min(50, Math.max(1, parseInt(document.getElementById('tableRowsInput')?.value || '3', 10)));
+            const cols = Math.min(20, Math.max(1, parseInt(document.getElementById('tableColsInput')?.value || '3', 10)));
+            hideCustomDialog();
+            resolve({ rows, cols });
+        };
+
+        const cancel = () => {
+            hideCustomDialog();
+            resolve(null);
+        };
+
+        const handleKeydown = (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                confirm();
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                cancel();
+            }
+        };
+
+        customDialogConfirm.onclick = confirm;
+        customDialogCancel.onclick = cancel;
+        customDialogOverlay.onclick = cancel;
+        document.addEventListener('keydown', handleKeydown);
+
+        customDialogCleanup = () => {
+            customDialogConfirm.onclick = null;
+            customDialogCancel.onclick = null;
+            customDialogOverlay.onclick = null;
+            document.removeEventListener('keydown', handleKeydown);
+        };
+    });
+}
+
+async function handleInsertTable() {
+    const result = await showInsertTableDialog();
+    if (result) {
+        noteContent.focus();
+        insertGeneratedTable(result.rows, result.cols);
+    }
+    closeExportMenu();
+}
+
 async function handlePasswordOpen(enteredPassword) {
     if (!pendingNoteToOpen) return;
 
@@ -276,14 +623,13 @@ async function handlePasswordOpen(enteredPassword) {
             noteNameInput.value = pendingNoteToOpen.id;
             noteAuthorInput.value = data.author || '';
             notePasswordInput.value = enteredPassword;
-            noteContent.value = data.content || '';
+            setEditorHtml(data.content || '');
+            clearSearchHighlights();
             currentSearchTerm = '';
             currentMatchIndex = -1;
-            matchPositions = [];
-            applyHighlights();
-            setEditing(false);
             findBoxDropdown.value = '';
             searchPanel.classList.remove('open');
+            setEditing(false);
             closeMenu();
             hidePasswordDialog();
         } else {
@@ -296,7 +642,6 @@ async function handlePasswordOpen(enteredPassword) {
     }
 }
 
-// Handle password verification for deleting notes
 async function handlePasswordDelete(enteredPassword) {
     if (!pendingNoteToDelete) return;
 
@@ -305,12 +650,7 @@ async function handlePasswordDelete(enteredPassword) {
         const data = snap.data() || {};
 
         if (data.password === enteredPassword) {
-            const confirmed = await customConfirm(
-                `Are you absolutely sure you want to delete "${pendingNoteToDelete.id}"?`,
-                'Confirm Deletion',
-                'danger'
-            );
-
+            const confirmed = await customConfirm(`Are you absolutely sure you want to delete "${pendingNoteToDelete.id}"?`, 'Confirm Deletion', 'danger');
             if (!confirmed) {
                 hidePasswordDialog();
                 return;
@@ -320,9 +660,7 @@ async function handlePasswordDelete(enteredPassword) {
             allNotes = allNotes.filter(x => x.id !== pendingNoteToDelete.id);
             renderList(filterNotes(searchNotesInput.value));
 
-            if (currentNoteId === pendingNoteToDelete.id) {
-                clearEditor();
-            }
+            if (currentNoteId === pendingNoteToDelete.id) clearEditor();
 
             hidePasswordDialog();
             await customAlert(`"${pendingNoteToDelete.id}" deleted successfully`, 'Success', 'success');
@@ -337,15 +675,6 @@ async function handlePasswordDelete(enteredPassword) {
     }
 }
 
-dialogPasswordInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-        dialogSubmit.click();
-    } else if (e.key === 'Escape') {
-        hidePasswordDialog();
-    }
-});
-
-// Open note directly if no password is set
 async function openNote(noteData) {
     try {
         const snap = await notesColRef.doc(noteData.id).get();
@@ -359,14 +688,13 @@ async function openNote(noteData) {
             noteNameInput.value = noteData.id;
             noteAuthorInput.value = data.author || '';
             notePasswordInput.value = '';
-            noteContent.value = data.content || '';
+            setEditorHtml(data.content || '');
+            clearSearchHighlights();
             currentSearchTerm = '';
             currentMatchIndex = -1;
-            matchPositions = [];
-            applyHighlights();
-            setEditing(false);
             findBoxDropdown.value = '';
             searchPanel.classList.remove('open');
+            setEditing(false);
             closeMenu();
         }
     } catch (err) {
@@ -374,7 +702,6 @@ async function openNote(noteData) {
     }
 }
 
-// Delete note with conditional password check
 async function deleteNoteFromList(noteData) {
     try {
         const snap = await notesColRef.doc(noteData.id).get();
@@ -383,21 +710,14 @@ async function deleteNoteFromList(noteData) {
         if (data.password && data.password.trim() !== '') {
             showPasswordDialog(noteData, 'delete');
         } else {
-            const confirmed = await customConfirm(
-                `Delete "${noteData.id}"? (No password required)`,
-                'Confirm Deletion',
-                'danger'
-            );
-
+            const confirmed = await customConfirm(`Delete "${noteData.id}"? (No password required)`, 'Confirm Deletion', 'danger');
             if (!confirmed) return;
 
             await notesColRef.doc(noteData.id).delete();
             allNotes = allNotes.filter(x => x.id !== noteData.id);
             renderList(filterNotes(searchNotesInput.value));
 
-            if (currentNoteId === noteData.id) {
-                clearEditor();
-            }
+            if (currentNoteId === noteData.id) clearEditor();
 
             await customAlert(`"${noteData.id}" deleted successfully`, 'Success', 'success');
         }
@@ -405,9 +725,6 @@ async function deleteNoteFromList(noteData) {
         await customAlert('Delete failed: ' + err.message, 'Error', 'danger');
     }
 }
-
-// Export menu functions
-let exportOutsideAbort = null;
 
 function positionExportMenu() {
     if (exportMenu.parentElement !== document.body) {
@@ -428,10 +745,7 @@ function positionExportMenu() {
     let left = rect.right - menuWidth + window.scrollX;
 
     const margin = 10;
-    left = Math.max(
-        margin + window.scrollX,
-        Math.min(left, window.scrollX + window.innerWidth - menuWidth - margin)
-    );
+    left = Math.max(margin + window.scrollX, Math.min(left, window.scrollX + window.innerWidth - menuWidth - margin));
 
     const maxBottom = window.scrollY + window.innerHeight - margin;
     if (top + menuHeight > maxBottom) {
@@ -500,173 +814,9 @@ exportToggle.addEventListener('click', (e) => {
 
 exportMenu.addEventListener('click', (e) => e.stopPropagation());
 
-function setEditing(editing) {
-    isEditing = editing;
-    noteContent.readOnly = !editing;
-    noteContent.classList.toggle('readonly', !editing);
-    noteNameInput.style.display = editing ? '' : 'none';
-    noteAuthorInput.parentElement.style.display = editing ? 'flex' : 'none';
-    document.getElementById('buttons').style.display = editing ? 'flex' : 'none';
-
-    if (editing) {
-        noteContent.focus(); // Focus on content for immediate multi-line editing (Enter for newlines)
-    }
-}
-
-function clearEditor() {
-    currentNoteId = '';
-    currentNotePassword = '';
-    noteNameInput.value = '';
-    noteAuthorInput.value = '';
-    notePasswordInput.value = '';
-    noteContent.value = '';
-    highlightBackdrop.innerHTML = '';
-    setEditing(true);
-}
-
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-function escapeRegex(str) {
-    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-function applyHighlights() {
-    const text = noteContent.value;
-    let highlightedText = escapeHtml(text);
-    matchPositions = [];
-
-    if (currentSearchTerm) {
-        const regex = new RegExp(escapeRegex(currentSearchTerm), 'gi');
-        let match;
-        while ((match = regex.exec(text)) !== null) {
-            matchPositions.push({ start: match.index, end: match.index + match[0].length });
-        }
-
-        if (matchPositions.length > 0) {
-            let lastIndex = 0;
-            let result = '';
-            matchPositions.forEach((pos, idx) => {
-                result += escapeHtml(text.substring(lastIndex, pos.start));
-                const classAttr = idx === currentMatchIndex ? ' class="current-match"' : '';
-                result += `<mark${classAttr}>${escapeHtml(text.substring(pos.start, pos.end))}</mark>`;
-                lastIndex = pos.end;
-            });
-            result += escapeHtml(text.substring(lastIndex));
-            highlightedText = result;
-
-            updateMatchInfo();
-        } else {
-            matchInfo.textContent = 'No matches';
-            currentMatchIndex = -1;
-        }
-
-        prevMatch.disabled = matchPositions.length === 0;
-        nextMatch.disabled = matchPositions.length === 0;
-    } else {
-        matchInfo.textContent = 'No matches';
-        currentMatchIndex = -1;
-        prevMatch.disabled = true;
-        nextMatch.disabled = true;
-    }
-
-    if (text.endsWith('\n')) {
-        highlightedText += '\n';
-    }
-
-    highlightBackdrop.innerHTML = highlightedText;
-}
-
-function updateMatchInfo() {
-    if (matchPositions.length === 0) {
-        matchInfo.textContent = 'No matches';
-    } else {
-        matchInfo.textContent = `${currentMatchIndex + 1} / ${matchPositions.length}`;
-    }
-}
-
-function scrollToMatch(index) {
-    if (index < 0 || index >= matchPositions.length) return;
-
-    const pos = matchPositions[index];
-    noteContent.focus();
-    noteContent.setSelectionRange(pos.start, pos.end);
-
-    const lineHeight = 1.65;
-    const fontSize = 0.95;
-    const lines = noteContent.value.substring(0, pos.start).split('\n').length;
-    const scrollTop = (lines - 5) * (fontSize * 16 * lineHeight);
-    noteContent.scrollTop = Math.max(0, scrollTop);
-
-    syncScroll();
-}
-
-function goToPrevMatch() {
-    if (matchPositions.length === 0) return;
-    currentMatchIndex = currentMatchIndex <= 0 ? matchPositions.length - 1 : currentMatchIndex - 1;
-    applyHighlights();
-    scrollToMatch(currentMatchIndex);
-}
-
-function goToNextMatch() {
-    if (matchPositions.length === 0) return;
-    currentMatchIndex = currentMatchIndex >= matchPositions.length - 1 ? 0 : currentMatchIndex + 1;
-    applyHighlights();
-    scrollToMatch(currentMatchIndex);
-}
-
-function syncScroll() {
-    highlightBackdrop.scrollTop = noteContent.scrollTop;
-    highlightBackdrop.scrollLeft = noteContent.scrollLeft;
-}
-
-noteContent.addEventListener('input', applyHighlights);
-noteContent.addEventListener('scroll', syncScroll);
-
-findToggle.addEventListener('click', () => {
-    const isOpen = searchPanel.classList.contains('open');
-    if (isOpen) {
-        searchPanel.classList.remove('open');
-    } else {
-        searchPanel.classList.add('open');
-        findBoxDropdown.focus();
-        findBoxDropdown.select();
-    }
-});
-
-closeSearch.addEventListener('click', () => {
-    searchPanel.classList.remove('open');
-    currentSearchTerm = '';
-    currentMatchIndex = -1;
-    matchPositions = [];
-    applyHighlights();
-});
-
-findBoxDropdown.addEventListener('input', (e) => {
-    currentSearchTerm = e.target.value.trim();
-    currentMatchIndex = -1;
-    applyHighlights();
-});
-
-findBoxDropdown.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-        e.preventDefault();
-        if (e.shiftKey) goToPrevMatch();
-        else goToNextMatch();
-    }
-    if (e.key === 'Escape') {
-        closeSearch.click();
-    }
-});
-
-prevMatch.addEventListener('click', goToPrevMatch);
-nextMatch.addEventListener('click', goToNextMatch);
-
 function renderList(list) {
     notesUl.innerHTML = '';
+
     if (!list.length) {
         const li = document.createElement('li');
         li.className = 'note-item';
@@ -676,6 +826,7 @@ function renderList(list) {
         notesUl.appendChild(li);
         return;
     }
+
     list.forEach(n => {
         const li = document.createElement('li');
         li.className = 'note-item';
@@ -687,11 +838,9 @@ function renderList(list) {
         const title = document.createElement('span');
         title.className = 'note-title';
         title.textContent = n.id;
-        title.title = 'Open note';
 
         const authorDisplay = document.createElement('div');
         authorDisplay.className = 'note-author-display';
-
         const lockIcon = n.password && n.password.trim() !== '' ? '🔒 ' : '🔓 ';
         authorDisplay.textContent = `${lockIcon}By: ${n.author || 'Unknown'}`;
 
@@ -725,15 +874,15 @@ function renderList(list) {
                 const diff = expireDate - now;
 
                 if (diff <= 0) {
-                    timer.textContent = '⏰ Expired';
+                    timer.textContent = 'Expired';
                     timer.style.color = '#e74c3c';
                 } else {
                     const hours = Math.floor(diff / (1000 * 60 * 60));
                     const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-                    timer.textContent = `⏰ ${hours}h ${minutes}m left`;
+                    timer.textContent = `${hours}h ${minutes}m left`;
                 }
             } else {
-                timer.textContent = '⏰ No expiration';
+                timer.textContent = 'No expiration';
             }
         }
 
@@ -743,7 +892,7 @@ function renderList(list) {
 
         const deleteItem = document.createElement('button');
         deleteItem.className = 'menu-item';
-        deleteItem.textContent = '🗑️ Delete';
+        deleteItem.textContent = 'Delete';
         menu.appendChild(deleteItem);
 
         function openKebabMenu(e) {
@@ -786,6 +935,7 @@ function renderList(list) {
 function filterNotes(q) {
     const t = (q || '').trim().toLowerCase();
     if (!t) return allNotes.slice();
+
     return allNotes.filter(n =>
         n.id.toLowerCase().includes(t) ||
         (n.author && n.author.toLowerCase().includes(t))
@@ -794,10 +944,9 @@ function filterNotes(q) {
 
 async function loadList() {
     try {
-        const snap = await notesColRef
-            .orderBy('content').orderBy(firebase.firestore.FieldPath.documentId())
-            .get();
+        const snap = await notesColRef.orderBy(firebase.firestore.FieldPath.documentId()).get();
         allNotes = [];
+
         snap.forEach(d => {
             const data = d.data() || {};
             allNotes.push({
@@ -808,6 +957,7 @@ async function loadList() {
                 password: data.password || ''
             });
         });
+
         renderList(filterNotes(searchNotesInput.value));
     } catch (e) {
         notesUl.innerHTML = '<li class="note-item">Error loading notes.</li>';
@@ -819,11 +969,13 @@ async function saveNote() {
     const id = noteNameInput.value.trim();
     const author = noteAuthorInput.value.trim();
     const password = notePasswordInput.value.trim();
+    const content = getEditorHtml();
 
     if (!id) {
         await customAlert('Enter a note name', 'Validation Error', 'danger');
         return;
     }
+
     if (!author) {
         await customAlert('Enter author name', 'Validation Error', 'danger');
         return;
@@ -834,16 +986,16 @@ async function saveNote() {
         const expiry = new Date(now.getTime() + 4 * 24 * 60 * 60 * 1000);
 
         await notesColRef.doc(id).set({
-            content: noteContent.value || '',
-            author: author,
-            password: password,
+            content,
+            author,
+            password,
             expiry: firebase.firestore.Timestamp.fromDate(expiry),
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
 
         const idx = allNotes.findIndex(n => n.id === id);
         if (idx >= 0) {
-            allNotes[idx].content = noteContent.value || '';
+            allNotes[idx].content = content;
             allNotes[idx].author = author;
             allNotes[idx].password = password;
             allNotes[idx].expiry = firebase.firestore.Timestamp.fromDate(expiry);
@@ -852,10 +1004,11 @@ async function saveNote() {
                 id,
                 author,
                 password,
-                content: noteContent.value || '',
+                content,
                 expiry: firebase.firestore.Timestamp.fromDate(expiry)
             });
         }
+
         allNotes.sort((a, b) => a.id.localeCompare(b.id));
         renderList(filterNotes(searchNotesInput.value));
         currentNoteId = id;
@@ -863,7 +1016,6 @@ async function saveNote() {
 
         const protectionStatus = password ? 'password-protected' : 'open (no password)';
         await customAlert(`Note saved as ${protectionStatus} (expires in 4 days)`, 'Success', 'success');
-
         setEditing(false);
     } catch (e) {
         await customAlert('Save failed: ' + e.message, 'Error', 'danger');
@@ -906,7 +1058,7 @@ async function deleteOpenNote() {
 
 function exportTXT() {
     const name = noteNameInput.value.trim() || 'note';
-    const content = noteContent.value || '';
+    const content = getEditorText();
     const blob = new Blob([content], { type: 'text/plain' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -927,11 +1079,11 @@ function exportPDF() {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(12);
 
-    const content = noteContent.value || '';
+    const content = getEditorText();
     const lines = doc.splitTextToSize(content, maxWidth);
     const lineHeight = 7;
-
     let y = top;
+
     lines.forEach((line) => {
         if (y + lineHeight > pageHeight - bottom) {
             doc.addPage();
@@ -941,8 +1093,7 @@ function exportPDF() {
         y += lineHeight;
     });
 
-    const name = (noteNameInput.value.trim() || 'note') + '.pdf';
-    doc.save(name);
+    doc.save((noteNameInput.value.trim() || 'note') + '.pdf');
     closeExportMenu();
 }
 
@@ -953,25 +1104,23 @@ async function autoDeleteExpiredNotes() {
         const batch = firebase.firestore().batch();
         let deletedCount = 0;
 
-        snap.forEach(doc => {
-            const data = doc.data();
+        snap.forEach(docSnap => {
+            const data = docSnap.data();
             if (data.expiry && data.expiry.toDate() < now) {
-                batch.delete(doc.ref);
+                batch.delete(docSnap.ref);
                 deletedCount++;
             }
         });
 
         if (deletedCount > 0) {
             await batch.commit();
-            console.log(`Deleted ${deletedCount} expired note(s)`);
             await loadList();
-
             if (currentNoteId && !allNotes.find(n => n.id === currentNoteId)) {
                 clearEditor();
             }
         }
     } catch (e) {
-        console.error("Error deleting expired notes:", e);
+        console.error('Error deleting expired notes:', e);
     }
 }
 
@@ -985,78 +1134,46 @@ async function extendNoteLife(noteId) {
         const noteRef = notesColRef.doc(noteId);
         const docSnap = await noteRef.get();
 
-        if (docSnap.exists) {
-            const data = docSnap.data();
-            const password = currentNotePassword || notePasswordInput.value.trim();
-
-            if (data.password && data.password.trim() !== '') {
-                if (!password) {
-                    await customAlert('Password required to extend note', 'Error', 'danger');
-                    return;
-                }
-                if (data.password !== password) {
-                    await customAlert('Incorrect password!', 'Error', 'danger');
-                    return;
-                }
-            }
-
-            const currentExpiry = data.expiry ? data.expiry.toDate() : new Date();
-            const newExpiry = new Date(currentExpiry.getTime() + 24 * 60 * 60 * 1000);
-
-            await noteRef.update({
-                expiry: firebase.firestore.Timestamp.fromDate(newExpiry),
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
-
-            const noteIndex = allNotes.findIndex(n => n.id === noteId);
-            if (noteIndex >= 0) {
-                allNotes[noteIndex].expiry = firebase.firestore.Timestamp.fromDate(newExpiry);
-            }
-
-            renderList(filterNotes(searchNotesInput.value));
-            await customAlert("Note extended by 24 hours!", 'Success', 'success');
-            closeExportMenu();
-        } else {
+        if (!docSnap.exists) {
             await customAlert('Note not found', 'Error', 'danger');
+            return;
         }
+
+        const data = docSnap.data();
+        const password = currentNotePassword || notePasswordInput.value.trim();
+
+        if (data.password && data.password.trim() !== '') {
+            if (!password) {
+                await customAlert('Password required to extend note', 'Error', 'danger');
+                return;
+            }
+            if (data.password !== password) {
+                await customAlert('Incorrect password!', 'Error', 'danger');
+                return;
+            }
+        }
+
+        const currentExpiry = data.expiry ? data.expiry.toDate() : new Date();
+        const newExpiry = new Date(currentExpiry.getTime() + 24 * 60 * 60 * 1000);
+
+        await noteRef.update({
+            expiry: firebase.firestore.Timestamp.fromDate(newExpiry),
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        const noteIndex = allNotes.findIndex(n => n.id === noteId);
+        if (noteIndex >= 0) {
+            allNotes[noteIndex].expiry = firebase.firestore.Timestamp.fromDate(newExpiry);
+        }
+
+        renderList(filterNotes(searchNotesInput.value));
+        await customAlert('Note extended by 24 hours!', 'Success', 'success');
+        closeExportMenu();
     } catch (e) {
-        console.error("Error extending note life:", e);
+        console.error('Error extending note life:', e);
         await customAlert('Failed to extend note: ' + e.message, 'Error', 'danger');
     }
 }
-
-// Event Listeners
-saveBtn.addEventListener('click', saveNote);
-txtBtn.addEventListener('click', exportTXT);
-pdfBtn.addEventListener('click', exportPDF);
-deleteOpenBtn.addEventListener('click', deleteOpenNote);
-
-txtBtnMobile.addEventListener('click', exportTXT);
-pdfBtnMobile.addEventListener('click', exportPDF);
-deleteOpenBtnMobile.addEventListener('click', deleteOpenNote);
-
-extendBtn.addEventListener('click', async () => {
-    if (currentNoteId) await extendNoteLife(currentNoteId);
-    else await customAlert('Open a note first', 'Error', 'danger');
-});
-
-extendBtnMobile.addEventListener('click', async () => {
-    if (currentNoteId) await extendNoteLife(currentNoteId);
-    else await customAlert('Open a note first', 'Error', 'danger');
-});
-
-editToggle.addEventListener('click', () => {
-    const hasIdOrContent = !!(noteNameInput.value.trim() || noteContent.value);
-    if (!hasIdOrContent) {
-        setEditing(true);
-        noteNameInput.focus();
-    } else {
-        setEditing(!isEditing);
-        if (isEditing) {
-            noteContent.focus(); // Focus on content for editing with newlines
-        }
-    }
-});
 
 function loadTheme() {
     try {
@@ -1068,26 +1185,20 @@ function loadTheme() {
             document.body.classList.remove('light-mode');
             themeToggle.checked = false;
         }
-    } catch { }
+    } catch {}
 }
 
 themeToggle.addEventListener('change', () => {
-    if (themeToggle.checked) {
-        document.body.classList.add('light-mode');
-        localStorage.setItem('notepad-theme', 'light');
-    } else {
-        document.body.classList.remove('light-mode');
-        localStorage.setItem('notepad-theme', 'dark');
-    }
+    try {
+        if (themeToggle.checked) {
+            document.body.classList.add('light-mode');
+            localStorage.setItem('notepad-theme', 'light');
+        } else {
+            document.body.classList.remove('light-mode');
+            localStorage.setItem('notepad-theme', 'dark');
+        }
+    } catch {}
 });
-
-// Fullscreen functionality
-const textareaContainer = document.querySelector('.textarea-container');
-const readFsToggle = document.getElementById('readFsToggle');
-const readFsIcon = document.getElementById('readFsIcon');
-
-const ICON_EXPAND = 'expand.svg';
-const ICON_COLLAPSE = 'collapse.svg';
 
 function isContainerFullscreen() {
     return document.fullscreenElement === textareaContainer;
@@ -1127,6 +1238,95 @@ readFsToggle.addEventListener('click', (e) => {
 
 document.addEventListener('fullscreenchange', updateReadFsIcon);
 
+findToggle.addEventListener('click', () => {
+    const isOpen = searchPanel.classList.contains('open');
+    if (isOpen) {
+        searchPanel.classList.remove('open');
+        clearSearchHighlights();
+        currentSearchTerm = '';
+        findBoxDropdown.value = '';
+    } else {
+        searchPanel.classList.add('open');
+        findBoxDropdown.focus();
+        findBoxDropdown.select();
+    }
+});
+
+closeSearch.addEventListener('click', () => {
+    searchPanel.classList.remove('open');
+    currentSearchTerm = '';
+    findBoxDropdown.value = '';
+    clearSearchHighlights();
+});
+
+findBoxDropdown.addEventListener('input', (e) => {
+    currentSearchTerm = e.target.value.trim();
+    applyHighlights();
+});
+
+findBoxDropdown.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        if (e.shiftKey) goToPrevMatch();
+        else goToNextMatch();
+    }
+    if (e.key === 'Escape') {
+        closeSearch.click();
+    }
+});
+
+prevMatch.addEventListener('click', goToPrevMatch);
+nextMatch.addEventListener('click', goToNextMatch);
+
+noteContent.addEventListener('paste', (e) => {
+    if (!isEditing) return;
+
+    const clipboard = e.clipboardData;
+    if (!clipboard) return;
+
+    const html = clipboard.getData('text/html');
+    const text = clipboard.getData('text/plain');
+
+    if (html) {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        const pastedTable = doc.querySelector('table');
+
+        if (pastedTable) {
+            e.preventDefault();
+            const cleanTable = cleanPastedTable(pastedTable);
+            insertHtmlAtCursor(cleanTable.outerHTML + '<p><br></p>');
+            return;
+        }
+    }
+
+    const rows = parsePlainTextTable(text);
+    if (rows) {
+        e.preventDefault();
+        const htmlTable = createHtmlTable(rows.length, rows[0].length, rows);
+        insertHtmlAtCursor(htmlTable + '<p><br></p>');
+    }
+});
+
+noteContent.addEventListener('keydown', (e) => {
+    if (!isEditing) return;
+
+    if (e.key === 'Tab') {
+        const cell = document.activeElement.closest?.('td, th') || window.getSelection().anchorNode?.parentElement?.closest?.('td, th');
+        if (cell && noteContent.contains(cell)) {
+            e.preventDefault();
+            const cells = [...noteContent.querySelectorAll('th, td')];
+            const index = cells.indexOf(cell);
+            if (index !== -1) {
+                const nextIndex = e.shiftKey ? Math.max(0, index - 1) : Math.min(cells.length - 1, index + 1);
+                const target = cells[nextIndex];
+                target.focus?.();
+                placeCaretInside(target);
+            }
+        }
+    }
+});
+
 newFileBtn.addEventListener('click', () => {
     clearEditor();
     noteNameInput.focus();
@@ -1135,11 +1335,40 @@ newFileBtn.addEventListener('click', () => {
 
 searchNotesInput.addEventListener('input', () => renderList(filterNotes(searchNotesInput.value)));
 
-// Initialize
+saveBtn.addEventListener('click', saveNote);
+txtBtn.addEventListener('click', exportTXT);
+pdfBtn.addEventListener('click', exportPDF);
+deleteOpenBtn.addEventListener('click', deleteOpenNote);
+insertTableBtn.addEventListener('click', handleInsertTable);
+
+txtBtnMobile.addEventListener('click', exportTXT);
+pdfBtnMobile.addEventListener('click', exportPDF);
+deleteOpenBtnMobile.addEventListener('click', deleteOpenNote);
+insertTableBtnMobile.addEventListener('click', handleInsertTable);
+
+extendBtn.addEventListener('click', async () => {
+    if (currentNoteId) await extendNoteLife(currentNoteId);
+    else await customAlert('Open a note first', 'Error', 'danger');
+});
+
+extendBtnMobile.addEventListener('click', async () => {
+    if (currentNoteId) await extendNoteLife(currentNoteId);
+    else await customAlert('Open a note first', 'Error', 'danger');
+});
+
+editToggle.addEventListener('click', () => {
+    const hasIdOrContent = !!(noteNameInput.value.trim() || getEditorText().trim());
+    if (!hasIdOrContent) {
+        setEditing(true);
+        noteNameInput.focus();
+    } else {
+        setEditing(!isEditing);
+    }
+});
+
 loadTheme();
 setEditing(true);
 loadList();
-applyHighlights();
 autoDeleteExpiredNotes();
 
 expirationCheckInterval = setInterval(autoDeleteExpiredNotes, 5 * 60 * 60 * 1000);

@@ -2,12 +2,7 @@
     box-sizing: border-box;
 }
 
-/* ========================================
-   DESIGN TOKENS & CUSTOM PROPERTIES
-   ======================================== */
-
 :root {
-    /* Light Theme Colors */
     --bg-color-light: #ffffff;
     --text-color-light: #131516;
     --panel-bg-light: #f6f7f8;
@@ -19,7 +14,6 @@
     --hover-bg-light: #eef1f4;
     --shadow-light: 0 6px 20px rgba(0, 0, 0, 0.08);
 
-    /* Dark Theme Colors */
     --bg-color-dark: #181a1b;
     --text-color-dark: #e6e6e6;
     --panel-bg-dark: #1f2123;
@@ -31,12 +25,10 @@
     --hover-bg-dark: #26292c;
     --shadow-dark: 0 10px 30px rgba(0, 0, 0, 0.4);
 
-    /* Border Radius Scale */
     --radius-lg: 12px;
     --radius-md: 10px;
     --radius-sm: 8px;
 
-    /* Spacing Scale */
     --space-xs: 4px;
     --space-sm: 8px;
     --space-md: 12px;
@@ -44,19 +36,16 @@
     --space-xl: 20px;
     --space-2xl: 24px;
 
-    /* Typography Scale */
     --font-size-xs: 0.75rem;
     --font-size-sm: 0.85rem;
     --font-size-base: 0.95rem;
     --font-size-lg: 1.125rem;
     --font-size-xl: 1.25rem;
 
-    /* Animation Timings */
     --transition-fast: 0.15s ease;
     --transition-base: 0.2s ease;
     --transition-slow: 0.3s ease;
 
-    /* Z-index Scale */
     --z-base: 1;
     --z-dropdown: 100;
     --z-sticky: 150;
@@ -65,7 +54,6 @@
     --z-modal: 2000;
     --z-dialog: 10000;
 
-    /* Default Theme (Dark) */
     --bg-color: var(--bg-color-dark);
     --text-color: var(--text-color-dark);
     --panel-bg: var(--panel-bg-dark);
@@ -91,14 +79,9 @@ body.light-mode {
     --elev: var(--shadow-light);
 }
 
-/* ========================================
-   BASE STYLES
-   ======================================== */
-
 body {
     margin: 0;
     font-family: "Quicksand", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    font-optical-sizing: auto;
     font-weight: 500;
     font-size: var(--font-size-base);
     background: var(--bg-color);
@@ -109,16 +92,12 @@ body {
     transition: background-color var(--transition-base), color var(--transition-base);
 }
 
-/* ========================================
-   LAYOUT COMPONENTS
-   ======================================== */
-
 #sidebar {
     width: 320px;
     background: var(--panel-bg);
     border-right: 1px solid var(--input-border);
     padding: var(--space-lg);
-    padding-top: 0px;
+    padding-top: 0;
     display: flex;
     flex-direction: column;
     gap: var(--space-md);
@@ -151,7 +130,6 @@ body {
     backdrop-filter: blur(2px);
     display: none;
     z-index: var(--z-overlay);
-    transition: opacity var(--transition-base);
 }
 
 #main {
@@ -170,27 +148,17 @@ body {
     padding: 14px var(--space-xl);
     border-bottom: 1px solid var(--input-border);
     background: var(--panel-bg);
-    transition: background-color var(--transition-base), border-color var(--transition-base);
     position: relative;
     z-index: var(--z-dropdown);
 }
 
 .left-group,
-.actions {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
+.actions,
 .desktop-actions {
     display: flex;
     align-items: center;
     gap: 10px;
 }
-
-/* ========================================
-   TYPOGRAPHY
-   ======================================== */
 
 .title {
     margin: 0;
@@ -207,17 +175,11 @@ body {
 
 .title-free h6 a {
     color: #2a9aa8;
-    opacity: 0.5;
+    opacity: 0.6;
     padding: 2px;
-    /* background-color: rgba(255, 0, 0, 0.116); */
     border-radius: 3px;
     text-decoration: none;
 }
-
-
-/* ========================================
-   FORM ELEMENTS
-   ======================================== */
 
 input[type="text"],
 input[type="password"] {
@@ -245,23 +207,6 @@ input[type="password"]::placeholder {
     opacity: 0.55;
 }
 
-#noteName {
-    padding: var(--space-md) 14px;
-    border: 1px solid var(--input-border);
-    border-radius: var(--radius-md);
-    background: var(--input-bg);
-    color: var(--text-color);
-    font-size: var(--font-size-base);
-}
-
-textarea {
-    font-family: inherit;
-}
-
-/* ========================================
-   BUTTONS
-   ======================================== */
-
 .icon-btn,
 .btn {
     border: none;
@@ -284,15 +229,10 @@ textarea {
     background: var(--hover-bg);
 }
 
-.icon-btn:active {
-    transform: translateY(0.5px);
-}
-
 .icon-btn:focus-visible,
 .btn:focus-visible {
     outline: 2px solid color-mix(in oklab, var(--btn-bg), white 20%);
     outline-offset: 2px;
-    border-radius: var(--radius-sm);
 }
 
 .btn {
@@ -306,12 +246,6 @@ textarea {
 
 .btn:hover {
     background: var(--btn-hover);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-}
-
-.btn:active {
-    transform: translateY(0);
 }
 
 .hamburger {
@@ -325,21 +259,11 @@ textarea {
     padding: 10px;
     border: none;
     border-radius: var(--radius-md);
-    transition: background-color var(--transition-slow), transform var(--transition-slow);
-}
-
-#extendBtn:hover {
-    background-color: #4aacb9;
-    transform: scale(1.05);
 }
 
 #exportToggle {
     display: none;
 }
-
-/* ========================================
-   NOTES LIST
-   ======================================== */
 
 #notesList h3 {
     margin: 14px 0 10px;
@@ -349,7 +273,6 @@ textarea {
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.8px;
-    color: var(--text-color);
     opacity: 0.6;
 }
 
@@ -372,13 +295,11 @@ textarea {
     border-radius: var(--radius-sm);
     cursor: pointer;
     transition: all var(--transition-fast);
-    position: relative;
     gap: var(--space-md);
 }
 
 .note-item:hover {
     background: var(--hover-bg);
-    transform: translateX(2px);
 }
 
 .note-item-content {
@@ -408,17 +329,12 @@ textarea {
     padding: 6px;
     border-radius: var(--radius-sm);
     opacity: 0.6;
-    transition: opacity var(--transition-fast), background var(--transition-fast);
 }
 
 .kebab:hover {
     opacity: 1;
     background: var(--hover-bg);
 }
-
-/* ========================================
-   DROPDOWN MENUS
-   ======================================== */
 
 .menu,
 .export-menu {
@@ -436,7 +352,6 @@ textarea {
 .menu.open,
 .export-menu.open {
     display: block;
-    animation: slideDown 0.2s ease;
 }
 
 .menu-item,
@@ -450,7 +365,6 @@ textarea {
     cursor: pointer;
     font-size: var(--font-size-base);
     font-family: inherit;
-    transition: background-color var(--transition-fast);
 }
 
 .menu-item:hover,
@@ -467,11 +381,6 @@ textarea {
     border-bottom: 1px solid color-mix(in oklab, var(--input-border), transparent 30%);
     margin-bottom: 6px;
     padding: 6px 0;
-    letter-spacing: 0.5px;
-    user-select: none;
-    border-radius: 0;
-    transition: color var(--transition-slow), background var(--transition-slow), border-color var(--transition-slow);
-    animation: tickGlow 1s linear infinite;
 }
 
 .export-menu {
@@ -479,10 +388,6 @@ textarea {
     left: 0;
     min-width: 180px;
 }
-
-/* ========================================
-   SEARCH PANEL
-   ======================================== */
 
 .search-panel {
     position: absolute;
@@ -503,7 +408,6 @@ textarea {
     display: flex;
     flex-direction: column;
     gap: 10px;
-    animation: slideDown 0.2s ease;
 }
 
 .search-input-row {
@@ -519,7 +423,6 @@ textarea {
     border-radius: var(--radius-md);
     background: var(--input-bg);
     color: var(--text-color);
-    font-size: var(--font-size-base);
 }
 
 .search-nav {
@@ -537,10 +440,6 @@ textarea {
     color: var(--text-color);
     border-radius: var(--radius-sm);
     cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    transition: background-color var(--transition-fast);
 }
 
 .nav-btn:hover {
@@ -554,15 +453,10 @@ textarea {
 
 .match-info {
     font-size: var(--font-size-sm);
-    color: var(--text-color);
     opacity: 0.75;
     text-align: center;
     min-width: 80px;
 }
-
-/* ========================================
-   EDITOR PANEL
-   ======================================== */
 
 .editor-panel {
     display: flex;
@@ -571,7 +465,6 @@ textarea {
     padding: var(--space-xl);
     height: calc(100vh - 59px);
     background: var(--bg-color);
-    transition: background-color var(--transition-base);
 }
 
 #buttons {
@@ -586,85 +479,83 @@ textarea {
     width: 100%;
     overflow: hidden;
     border-radius: var(--radius-md);
+    background: var(--input-bg);
+    border: 1px solid var(--input-border);
 }
 
-.textarea-container::selection {
-    background-color: #2a9aa8;
-}
-
-#highlightBackdrop {
-    position: absolute;
-    top: 0;
-    left: 0;
+#noteContent {
     width: 100%;
     height: 100%;
+    overflow: auto;
     padding: var(--space-lg);
-    border: 1px solid var(--input-border);
-    border-radius: var(--radius-md);
-    background: var(--input-bg);
-    color: transparent;
+    outline: none;
+    color: var(--text-color);
+    background: transparent;
     font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
     font-size: var(--font-size-base);
     line-height: 1.65;
     white-space: pre-wrap;
-    word-wrap: break-word;
-    overflow: auto;
-    pointer-events: none;
-    transition: background-color var(--transition-base), border-color var(--transition-base);
+    word-break: break-word;
 }
 
-#noteContent {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    resize: none;
-    padding: var(--space-lg);
-    border: 1px solid var(--input-border);
-    border-radius: var(--radius-md);
-    background: transparent;
-    color: var(--text-color);
-    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
-    font-size: var(--font-size-base);
-    line-height: 1.65;
-    overflow: auto;
-    transition: color var(--transition-base), border-color var(--transition-base);
-}
-
-#noteContent:focus {
-    outline: none;
-    border-color: var(--btn-bg);
-}
-
-#noteContent.readonly {
-    opacity: 0.95;
+#noteContent[contenteditable="false"] {
     cursor: default;
+    opacity: 0.95;
 }
 
-mark {
+#noteContent:empty::before {
+    content: attr(data-placeholder);
+    color: rgba(120, 130, 140, 0.6);
+    pointer-events: none;
+}
+
+#noteContent p {
+    margin: 0 0 10px;
+}
+
+#noteContent table {
+    border-collapse: collapse;
+    width: 100%;
+    table-layout: fixed;
+    margin: 10px 0;
+    background: var(--input-bg);
+}
+
+#noteContent th,
+#noteContent td {
+    border: 1px solid var(--input-border);
+    padding: 8px 10px;
+    vertical-align: top;
+    min-width: 60px;
+    overflow-wrap: anywhere;
+}
+
+#noteContent th {
+    font-weight: 700;
+    background: color-mix(in oklab, var(--panel-bg), var(--btn-bg) 10%);
+}
+
+#noteContent tr:nth-child(even) td {
+    background: color-mix(in oklab, var(--input-bg), var(--hover-bg) 25%);
+}
+
+#noteContent table td:focus,
+#noteContent table th:focus {
+    outline: 2px solid color-mix(in oklab, var(--btn-bg), white 20%);
+    outline-offset: -2px;
+}
+
+mark.search-hit {
     background-color: rgba(32, 128, 140, 0.35);
     color: inherit;
     border-radius: 4px;
-    padding: 2px 0;
+    padding: 1px 0;
 }
 
-mark.current-match {
+mark.search-hit.current-match {
     background-color: rgba(32, 128, 140, 0.6);
-    box-shadow: 0 0 0 2px rgba(32, 128, 140, 0.4);
+    box-shadow: 0 0 0 2px rgba(32, 128, 140, 0.35);
 }
-
-body.light-mode mark {
-    background-color: rgba(32, 128, 140, 0.25);
-}
-
-body.light-mode mark.current-match {
-    background-color: rgba(32, 128, 140, 0.5);
-}
-
-/* ========================================
-   AUTHOR & PASSWORD FIELDS
-   ======================================== */
 
 .author-field {
     display: flex;
@@ -684,13 +575,6 @@ body.light-mode mark.current-match {
     border: 1px solid var(--input-border);
     border-radius: var(--radius-md);
     background: var(--input-bg);
-    font-size: var(--font-size-base);
-    transition: border-color var(--transition-base), background-color var(--transition-base), box-shadow var(--transition-fast);
-}
-
-.password-wrapper:focus-within {
-    border-color: var(--btn-bg);
-    box-shadow: 0 0 0 3px rgba(30, 127, 139, 0.1);
 }
 
 .password-wrapper input#notePassword {
@@ -703,126 +587,6 @@ body.light-mode mark.current-match {
     outline: none;
 }
 
-/* ========================================
-   PASSWORD DIALOG
-   ======================================== */
-
-.dialog-overlay {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.5);
-    backdrop-filter: blur(4px);
-    z-index: calc(var(--z-dialog) - 1);
-    animation: fadeIn var(--transition-base);
-}
-
-.dialog-overlay.show {
-    display: block;
-}
-
-.password-dialog {
-    display: none;
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background: var(--panel-bg);
-    border: 1px solid var(--input-border);
-    border-radius: var(--radius-lg);
-    padding: var(--space-2xl);
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
-    z-index: 9998;
-    min-width: 320px;
-    max-width: 400px;
-}
-
-.password-dialog.show {
-    display: block;
-    animation: scaleIn 0.25s ease;
-}
-
-.password-dialog h3 {
-    margin: 0 0 var(--space-sm) 0;
-    font-size: 18px;
-    color: var(--text-color);
-}
-
-.password-dialog .author-info {
-    font-size: 13px;
-    opacity: 0.7;
-    margin-bottom: var(--space-lg);
-    color: var(--text-color);
-}
-
-.password-dialog input {
-    width: 100%;
-    padding: 10px var(--space-md);
-    margin-bottom: var(--space-lg);
-    border: 2px solid var(--input-border);
-    border-radius: var(--radius-sm);
-    background: var(--input-bg);
-    color: var(--text-color);
-    font-family: 'Courier New', monospace;
-    font-size: 16px;
-    letter-spacing: 2px;
-    font-weight: 600;
-    transition: all var(--transition-slow);
-}
-
-.password-dialog input:focus {
-    border-color: var(--btn-bg);
-    box-shadow: 0 0 0 3px rgba(30, 127, 139, 0.15);
-    outline: none;
-}
-
-.password-dialog input::placeholder {
-    font-family: 'Quicksand', sans-serif;
-    letter-spacing: normal;
-    font-weight: 500;
-    opacity: 0.5;
-}
-
-.password-dialog .dialog-buttons {
-    display: flex;
-    gap: var(--space-sm);
-    justify-content: flex-end;
-}
-
-.password-dialog button {
-    padding: var(--space-sm) var(--space-lg);
-    border: none;
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    font-family: inherit;
-    font-weight: 600;
-    font-size: 14px;
-    transition: all var(--transition-fast);
-}
-
-.password-dialog .btn-submit {
-    background: var(--btn-bg);
-    color: var(--btn-text);
-}
-
-.password-dialog .btn-submit:hover {
-    background: var(--btn-hover);
-}
-
-.password-dialog .btn-cancel {
-    background: transparent;
-    color: var(--text-color);
-    border: 1px solid var(--input-border);
-}
-
-.password-dialog .btn-cancel:hover {
-    background: var(--hover-bg);
-}
-
-/* ========================================
-   THEME TOGGLE
-   ======================================== */
-
 .theme-row {
     margin-top: auto;
     padding-top: 14px;
@@ -831,12 +595,6 @@ body.light-mode mark.current-match {
     align-items: center;
     justify-content: space-between;
     gap: var(--space-md);
-}
-
-.theme-row label {
-    font-size: var(--font-size-base);
-    color: var(--text-color);
-    font-weight: 600;
 }
 
 .switch {
@@ -870,70 +628,178 @@ body.light-mode mark.current-match {
     background: #fff;
     transition: 0.25s;
     border-radius: 50%;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
-input:checked+.slider {
+input:checked + .slider {
     background: var(--btn-bg);
 }
 
-input:checked+.slider:before {
+input:checked + .slider:before {
     transform: translateX(24px);
 }
 
-/* ========================================
-   ANIMATIONS
-   ======================================== */
-
-@keyframes tickGlow {
-
-    0%,
-    100% {
-        opacity: 0.6;
-    }
-
-    50% {
-        opacity: 1;
-    }
+.dialog-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(4px);
+    z-index: 9998;
+    opacity: 0;
+    transition: opacity 0.25s ease;
 }
 
-@keyframes slideDown {
-    from {
-        opacity: 0;
-        transform: translateY(-10px);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+.dialog-overlay.show {
+    display: block;
+    opacity: 1;
 }
 
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-    }
-
-    to {
-        opacity: 1;
-    }
+.password-dialog,
+.dialog-box {
+    display: none;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.96);
+    background: var(--panel-bg);
+    border: 1px solid var(--input-border);
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
+    z-index: 9999;
+    width: min(90vw, 450px);
+    opacity: 0;
+    transition: all 0.25s ease;
 }
 
-@keyframes scaleIn {
-    from {
-        opacity: 0;
-        transform: translate(-50%, -50%) scale(0.95);
-    }
-
-    to {
-        opacity: 1;
-        transform: translate(-50%, -50%) scale(1);
-    }
+.password-dialog.show,
+.dialog-box.show {
+    display: block;
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
 }
 
-/* ========================================
-   RESPONSIVE DESIGN
-   ======================================== */
+.password-dialog {
+    padding: 24px;
+}
+
+.password-dialog h3 {
+    margin: 0 0 8px 0;
+}
+
+.password-dialog .author-info {
+    font-size: 13px;
+    opacity: 0.7;
+    margin-bottom: 16px;
+}
+
+.password-dialog input {
+    width: 100%;
+    padding: 10px 12px;
+    margin-bottom: 16px;
+    border: 2px solid var(--input-border);
+    border-radius: 8px;
+    background: var(--input-bg);
+    color: var(--text-color);
+    font-size: 16px;
+}
+
+.password-dialog .dialog-buttons {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+.password-dialog button {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: inherit;
+    font-weight: 600;
+}
+
+.password-dialog .btn-submit {
+    background: var(--btn-bg);
+    color: var(--btn-text);
+}
+
+.password-dialog .btn-cancel {
+    background: transparent;
+    color: var(--text-color);
+    border: 1px solid var(--input-border);
+}
+
+.dialog-header {
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid var(--input-border);
+}
+
+.dialog-body {
+    padding: 24px;
+}
+
+.dialog-body p {
+    margin: 0;
+    line-height: 1.6;
+    word-wrap: break-word;
+}
+
+.dialog-footer {
+    padding: 16px 24px 20px;
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    border-top: 1px solid var(--input-border);
+}
+
+.dialog-btn {
+    padding: 10px 24px;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.cancel-btn {
+    background: color-mix(in oklab, var(--panel-bg), white 8%);
+    color: var(--text-color);
+}
+
+.confirm-btn {
+    background: #4a9eff;
+    color: #ffffff;
+}
+
+.confirm-btn.danger {
+    background: #e74c3c;
+}
+
+.confirm-btn.success {
+    background: #2ecc71;
+}
+
+.read-fs-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 32px;
+    height: 32px;
+    padding: 4px;
+    border-radius: 6px;
+    background-color: rgba(211, 211, 211, 0.75);
+    opacity: 0.75;
+}
+
+.read-fs-btn:hover {
+    opacity: 1;
+}
+
+.read-fs-btn img {
+    width: 18px;
+    height: 18px;
+    pointer-events: none;
+}
 
 @media (max-width: 768px) {
     #sidebar {
@@ -994,23 +860,6 @@ input:checked+.slider:before {
     }
 }
 
-/* ========================================
-   UTILITY CLASSES
-   ======================================== */
-
-.sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border-width: 0;
-}
-
-/* Scrollbar Styling */
 ::-webkit-scrollbar {
     width: 8px;
     height: 8px;
@@ -1023,188 +872,4 @@ input:checked+.slider:before {
 ::-webkit-scrollbar-thumb {
     background: var(--input-border);
     border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-    background: var(--hover-bg);
-}
-
-
-.read-fs-btn {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    padding: 4px;
-    border: none;
-    border-radius: 6px;
-    background-color: lightgrey;
-    cursor: pointer;
-    opacity: 0.5;
-}
-
-.read-fs-btn:hover {
-    opacity: 0.75;
-    background-color: lightgrey;
-}
-
-.read-fs-btn img {
-    width: 18px;
-    height: 18px;
-    pointer-events: none;
-}
-
-.dialog-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.6);
-    backdrop-filter: blur(4px);
-    display: none;
-    z-index: 9998;
-    opacity: 0;
-    transition: opacity 0.3s ease;
-}
-
-.dialog-overlay.show {
-    display: block;
-    opacity: 1;
-}
-
-.dialog-box {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%) scale(0.9);
-    background: var(--bg-color, #1e1e1e);
-    border: 1px solid var(--border-color, #3a3a3a);
-    border-radius: 12px;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
-    max-width: 450px;
-    width: 90%;
-    z-index: 9999;
-    display: none;
-    opacity: 0;
-    transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-}
-
-.dialog-box.show {
-    display: block;
-    opacity: 1;
-    transform: translate(-50%, -50%) scale(1);
-}
-
-.dialog-header {
-    padding: 20px 24px 16px;
-    border-bottom: 1px solid var(--border-color, #3a3a3a);
-}
-
-.dialog-header h3 {
-    margin: 0;
-    font-size: 1.25rem;
-    font-weight: 600;
-    color: var(--text-color, #ffffff);
-}
-
-.dialog-body {
-    padding: 24px;
-}
-
-.dialog-body p {
-    margin: 0;
-    font-size: 1rem;
-    line-height: 1.6;
-    color: var(--text-secondary, #b0b0b0);
-    word-wrap: break-word;
-}
-
-.dialog-footer {
-    padding: 16px 24px 20px;
-    display: flex;
-    gap: 12px;
-    justify-content: flex-end;
-    border-top: 1px solid var(--border-color, #3a3a3a);
-}
-
-.dialog-btn {
-    padding: 10px 24px;
-    border: none;
-    border-radius: 8px;
-    font-size: 0.95rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    outline: none;
-}
-
-.dialog-btn:focus {
-    box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.5);
-}
-
-.cancel-btn {
-    background: var(--bg-secondary, #2a2a2a);
-    color: var(--text-color, #ffffff);
-}
-
-.cancel-btn:hover {
-    background: var(--bg-hover, #3a3a3a);
-}
-
-.confirm-btn {
-    background: #4a9eff;
-    color: #ffffff;
-}
-
-.confirm-btn:hover {
-    background: #3a8eef;
-}
-
-.confirm-btn.danger {
-    background: #e74c3c;
-}
-
-.confirm-btn.danger:hover {
-    background: #c0392b;
-}
-
-.confirm-btn.success {
-    background: #2ecc71;
-}
-
-.confirm-btn.success:hover {
-    background: #27ae60;
-}
-
-/* Light mode adjustments */
-body.light-mode .dialog-box {
-    background: #ffffff;
-    border-color: #e0e0e0;
-}
-
-body.light-mode .dialog-header h3 {
-    color: #1a1a1a;
-}
-
-body.light-mode .dialog-body p {
-    color: #4a4a4a;
-}
-
-body.light-mode .dialog-header,
-body.light-mode .dialog-footer {
-    border-color: #e0e0e0;
-}
-
-body.light-mode .cancel-btn {
-    background: #f5f5f5;
-    color: #1a1a1a;
-}
-
-body.light-mode .cancel-btn:hover {
-    background: #e0e0e0;
 }

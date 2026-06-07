@@ -1,12 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Free | Firebase Notepad</title>
     <link rel="icon" type="image/png" href="notepad.png">
-    <!-- Fonts: Quicksand -->
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@300..700&display=swap" rel="stylesheet">
@@ -14,13 +13,12 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
     <link rel="stylesheet" href="./style.css">
 </head>
-
 <body>
     <div id="overlay"></div>
 
-    <!-- Password Dialog -->
     <div class="dialog-overlay" id="dialogOverlay"></div>
     <div class="password-dialog" id="passwordDialog">
         <h3 id="dialogTitle"></h3>
@@ -33,10 +31,11 @@
     </div>
 
     <aside id="sidebar" aria-label="Saved notes sidebar">
-        <DIV id="sidebartop">
+        <div id="sidebartop">
             <button id="newFileBtn" class="btn" title="Create new note">+ New File</button>
             <input type="text" id="searchNotesInput" placeholder="Search notes..." autocomplete="off" />
-        </DIV>
+        </div>
+
         <div id="notesList">
             <h3>Saved Notes</h3>
             <ul id="notesUl"></ul>
@@ -59,40 +58,42 @@
                         <path d="M3 6h18v2H3V6zm0 5h18v2H3v-2zm0 5h18v2H3v-2z" />
                     </svg>
                 </button>
+
                 <div class="title-free">
                     <h4 class="title">Firebase Notepad</h4>
-                    <h6 class="title">Free <a href="./index.html">( try PRO )</a> </h6>
+                    <h6 class="title">Free <a href="./index.html">( try PRO )</a></h6>
                 </div>
             </div>
 
             <div class="actions">
                 <button id="findToggle" class="icon-btn" title="Find in note" aria-label="Find">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                        <path
-                            d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z" />
+                        <path d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z" />
                     </svg>
                 </button>
 
                 <button id="editToggle" class="icon-btn" title="Toggle edit" aria-label="Edit">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                        <path
-                            d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1.01 1.01 0 0 0 0-1.42l-2.34-2.34a1.01 1.01 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z" />
+                        <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1.01 1.01 0 0 0 0-1.42l-2.34-2.34a1.01 1.01 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z" />
                     </svg>
                 </button>
 
-                <!-- Desktop: Individual buttons -->
                 <div class="desktop-actions">
+                    <button id="insertTableBtn" class="icon-btn" title="Insert Table" aria-label="Insert Table">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                            <path d="M3 3h18v18H3V3zm2 2v4h6V5H5zm8 0v4h6V5h-6zM5 11v4h6v-4H5zm8 0v4h6v-4h-6zM5 17v2h6v-2H5zm8 0v2h6v-2h-6z" />
+                        </svg>
+                    </button>
+
                     <button id="txtBtn" class="icon-btn" title="Export as TXT" aria-label="Export TXT">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                            <path
-                                d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z" />
+                            <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z" />
                         </svg>
                     </button>
 
                     <button id="pdfBtn" class="icon-btn" title="Export as PDF" aria-label="Export PDF">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                            <path
-                                d="M14,2L20,8V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V4A2,2 0 0,1 6,2H14M18,20V9H13V4H6V20H18M10,19H12V18H10.5V17H12V16H10.5V15H12V14H10V19M14.5,19H16.5L15.5,14H14L14.5,19Z" />
+                            <path d="M14,2L20,8V20A2,2 0 0 1 18,22H6A2,2 0 0 1 4,20V4A2,2 0 0 1 6,2H14M18,20V9H13V4H6V20H18M10,19H12V18H10.5V17H12V16H10.5V15H12V14H10V19M14.5,19H16.5L15.5,14H14L14.5,19Z" />
                         </svg>
                     </button>
 
@@ -102,37 +103,30 @@
                         </svg>
                     </button>
 
-                    <!-- Desktop "+24 hrs" icon -->
-                    <button id="extendBtn" class="icon-btn" title="Extend 24 hours"
-                        style="font-size: 12px; font-weight: 600;">+24h</button>
+                    <button id="extendBtn" class="icon-btn" title="Extend 24 hours" style="font-size:12px;font-weight:600;">+24h</button>
                 </div>
 
-                <!-- Mobile: Kebab menu trigger -->
-                <button id="exportToggle" class="icon-btn" title="More options" aria-label="More" aria-haspopup="menu"
-                    aria-expanded="false">
+                <button id="exportToggle" class="icon-btn" title="More options" aria-label="More" aria-haspopup="menu" aria-expanded="false">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                        <path
-                            d="M12 8a2 2 0 110-4 2 2 0 010 4zm0 6a2 2 0 110-4 2 2 0 010 4zm0 6a2 2 0 110-4 2 2 0 010 4z" />
+                        <path d="M12 8a2 2 0 110-4 2 2 0 010 4zm0 6a2 2 0 110-4 2 2 0 010 4zm0 6a2 2 0 110-4 2 2 0 010 4z" />
                     </svg>
                 </button>
             </div>
 
-            <!-- Mobile export dropdown (anchored to viewport) -->
             <div class="export-menu" id="exportMenu" role="menu" aria-label="Export menu">
+                <button class="export-menu-item" role="menuitem" id="insertTableBtnMobile">Insert Table</button>
                 <button class="export-menu-item" role="menuitem" id="txtBtnMobile">Export as TXT</button>
                 <button class="export-menu-item" role="menuitem" id="pdfBtnMobile">Export as PDF</button>
                 <button class="export-menu-item" role="menuitem" id="extendBtnMobile">+24 hrs</button>
                 <button class="export-menu-item" role="menuitem" id="deleteOpenBtnMobile">Delete Note</button>
             </div>
 
-            <!-- Search Panel Dropdown -->
             <div class="search-panel" id="searchPanel">
                 <div class="search-input-row">
                     <input type="text" id="findBoxDropdown" placeholder="Find in note..." autocomplete="off" />
                     <button id="closeSearch" class="icon-btn" title="Close search" style="padding: 6px;">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                            <path
-                                d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
                         </svg>
                     </button>
                 </div>
@@ -165,24 +159,15 @@
                 <button id="saveBtn" class="btn">Save Note</button>
             </div>
 
-
             <div class="textarea-container">
-                <div id="highlightBackdrop"></div>
-                <textarea id="noteContent" placeholder="Write your note here..." spellcheck="false"></textarea>
-
-                <!-- Read-only fullscreen toggle -->
-                <button id="readFsToggle" class="icon-btn read-fs-btn" type="button" title="Enter fullscreen"
-                    aria-label="Enter fullscreen">
+                <div id="noteContent" contenteditable="true" spellcheck="false" aria-label="Note content" data-placeholder="Write your note here..."></div>
+                <button id="readFsToggle" class="icon-btn read-fs-btn" type="button" title="Enter fullscreen" aria-label="Enter fullscreen">
                     <img id="readFsIcon" alt="" src="expand.svg">
                 </button>
             </div>
         </section>
-
-
     </main>
 
-
-    <!-- Custom Alert/Confirm Dialog -->
     <div id="customDialogOverlay" class="dialog-overlay"></div>
     <div id="customDialog" class="dialog-box">
         <div class="dialog-header">
@@ -199,5 +184,4 @@
 
     <script src="script.js"></script>
 </body>
-
 </html>
