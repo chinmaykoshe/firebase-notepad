@@ -308,10 +308,14 @@ function App() {
     }
     const confirmed = await showConfirm(`Delete "${note.id}"?`, "Confirm Deletion", "danger");
     if (!confirmed) return;
-    await deleteDoc(doc(notesCollection, note.id));
-    if (currentNoteId === note.id) clearEditor();
-    await loadList();
-    await showAlert(`"${note.id}" deleted successfully`, "Success", "success");
+    try {
+      await deleteDoc(doc(notesCollection, note.id));
+      if (currentNoteId === note.id) clearEditor();
+      await loadList();
+      await showAlert(`"${note.id}" deleted successfully`, "Success", "success");
+    } catch (err) {
+      await showAlert(`Failed to delete: ${err.message}`, "Error", "danger");
+    }
   }
 
   async function deleteOpenNote() {
