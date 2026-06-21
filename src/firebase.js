@@ -31,12 +31,11 @@ const notesCollection = collection(db, "notes");
 
 export {
   db,
-  notesCollection,
-  collection,
   deleteDoc,
   doc,
   getDoc,
   getDocs,
+  notesCollection,
   orderBy,
   query,
   serverTimestamp,
