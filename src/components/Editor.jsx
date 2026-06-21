@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import SearchPanel from "./SearchPanel.jsx";
 import ImageResizer from "./ImageResizer.jsx";
 
@@ -42,6 +42,32 @@ function Editor({
   }) {
   const [selectedImg, setSelectedImg] = useState(null);
   const [zoomLevel, setZoomLevel] = useState(1);
+  const savedRangeRef = useRef(null);
+
+  // Save the current editor selection so toolbar interactions don't lose it
+  const saveSelection = () => {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      const range = sel.getRangeAt(0);
+      // Only save if the range is inside the editor
+      if (editorRef.current && editorRef.current.contains(range.commonAncestorContainer)) {
+        savedRangeRef.current = range.cloneRange();
+      }
+    }
+  };
+
+  // Restore saved selection then apply the format command
+  const safeFormat = (command, value = null) => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    editor.focus();
+    if (savedRangeRef.current) {
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(savedRangeRef.current);
+    }
+    onFormat(command, value);
+  };
 
   const handleEditorClick = (e) => {
     if (e.target.tagName === "IMG") {
@@ -117,9 +143,9 @@ function Editor({
       <section className="editor-panel">
         {isEditing && (
           <>
-            {/* Note metadata: collapses on mobile */}
+            {/* Note metadata — collapses on mobile via <details> */}
             <details className="meta-fields" open>
-              <summary className="meta-summary">Note details ▾</summary>
+              <summary className="meta-summary">📝 Note Details</summary>
               <div className="meta-body">
                 <input
                   id="noteName"
@@ -149,18 +175,24 @@ function Editor({
               </div>
             </details>
 
-            {/* Formatting toolbar — always visible, scrolls horizontally */}
-            <div className="edit-bar">
-              <button className="btn" id="saveBtn" onClick={onSave}>Save</button>
-              <div className={`format-toolbar always-open`} aria-label="Text formatting toolbar">
+            {/* Full-wrap formatting toolbar */}
+            <div
+              className="format-panel"
+              aria-label="Text formatting toolbar"
+              onMouseDown={saveSelection}
+              onTouchStart={saveSelection}
+            >
+              {/* Row 1: Save + Font controls */}
+              <div className="fmt-row">
+                <button className="btn fmt-save" id="saveBtn" onClick={onSave}>
+                  💾 Save
+                </button>
+                <span className="fmt-sep" />
                 <select
                   className="format-select font-select"
                   defaultValue=""
-                  title="Font"
-                  onChange={(event) => {
-                    if (event.target.value) onFormat("fontName", event.target.value);
-                    event.target.value = "";
-                  }}
+                  title="Font family"
+                  onChange={(event) => { if (event.target.value) safeFormat("fontName", event.target.value); event.target.value = ""; }}
                 >
                   <option value="">Font</option>
                   <option value="Arial">Arial</option>
@@ -172,11 +204,8 @@ function Editor({
                 <select
                   className="format-select size-select"
                   defaultValue=""
-                  title="Text size"
-                  onChange={(event) => {
-                    if (event.target.value) onFormat("fontSize", event.target.value);
-                    event.target.value = "";
-                  }}
+                  title="Font size"
+                  onChange={(event) => { if (event.target.value) safeFormat("fontSize", event.target.value); event.target.value = ""; }}
                 >
                   <option value="">Size</option>
                   <option value="2">Small</option>
@@ -185,19 +214,47 @@ function Editor({
                   <option value="5">Large</option>
                   <option value="6">Huge</option>
                 </select>
-                <button type="button" className="format-btn" title="Bold" onClick={() => onFormat("bold")}>B</button>
-                <button type="button" className="format-btn italic" title="Italic" onClick={() => onFormat("italic")}>I</button>
-                <button type="button" className="format-btn underline" title="Underline" onClick={() => onFormat("underline")}>U</button>
-                <span className="format-divider" />
-                <button type="button" className="format-btn" title="Bullet list" onClick={() => onFormat("insertUnorderedList")}>• List</button>
-                <button type="button" className="format-btn" title="Numbered list" onClick={() => onFormat("insertOrderedList")}>1. List</button>
-                <button type="button" className="format-btn" title="Outdent" onClick={() => onFormat("outdent")}>Out</button>
-                <button type="button" className="format-btn" title="Indent" onClick={() => onFormat("indent")}>In</button>
-                <span className="format-divider" />
-                <button type="button" className="format-btn" title="Align left" onClick={() => onFormat("justifyLeft")}>Left</button>
-                <button type="button" className="format-btn" title="Align center" onClick={() => onFormat("justifyCenter")}>Center</button>
-                <button type="button" className="format-btn" title="Align right" onClick={() => onFormat("justifyRight")}>Right</button>
-                <button type="button" className="format-btn" title="Clear formatting" onClick={() => onFormat("removeFormat")}>Clear</button>
+              </div>
+
+              {/* Row 2: Style + Lists + Indent + Align + Clear */}
+              <div className="fmt-row">
+                <div className="fmt-group">
+                  <button type="button" className="format-btn bold-btn" title="Bold" onClick={() => safeFormat("bold")}><b>B</b></button>
+                  <button type="button" className="format-btn italic-btn" title="Italic" onClick={() => safeFormat("italic")}><i>I</i></button>
+                  <button type="button" className="format-btn underline-btn" title="Underline" onClick={() => safeFormat("underline")}><u>U</u></button>
+                </div>
+                <span className="fmt-sep" />
+                <div className="fmt-group">
+                  <button type="button" className="format-btn" title="Bullet list" onClick={() => safeFormat("insertUnorderedList")}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="4" cy="6" r="2"/><rect x="8" y="5" width="13" height="2" rx="1"/><circle cx="4" cy="12" r="2"/><rect x="8" y="11" width="13" height="2" rx="1"/><circle cx="4" cy="18" r="2"/><rect x="8" y="17" width="13" height="2" rx="1"/></svg>
+                  </button>
+                  <button type="button" className="format-btn" title="Numbered list" onClick={() => safeFormat("insertOrderedList")}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><text x="2" y="8" fontSize="8" fontWeight="bold">1.</text><rect x="8" y="5" width="13" height="2" rx="1"/><text x="2" y="14" fontSize="8" fontWeight="bold">2.</text><rect x="8" y="11" width="13" height="2" rx="1"/><text x="2" y="20" fontSize="8" fontWeight="bold">3.</text><rect x="8" y="17" width="13" height="2" rx="1"/></svg>
+                  </button>
+                  <button type="button" className="format-btn" title="Decrease indent" onClick={() => safeFormat("outdent")}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M3 5h18v2H3V5zm8 4h10v2H11V9zm0 4h10v2H11v-2zm-8 4h18v2H3v-2zM3 9l4 3-4 3V9z"/></svg>
+                  </button>
+                  <button type="button" className="format-btn" title="Increase indent" onClick={() => safeFormat("indent")}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M3 5h18v2H3V5zm8 4h10v2H11V9zm0 4h10v2H11v-2zm-8 4h18v2H3v-2zM3 9l4 3-4 3V9z" transform="scale(-1,1) translate(-24,0)"/></svg>
+                  </button>
+                </div>
+                <span className="fmt-sep" />
+                <div className="fmt-group">
+                  <button type="button" className="format-btn" title="Align left" onClick={() => safeFormat("justifyLeft")}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="5" width="18" height="2" rx="1"/><rect x="3" y="9" width="12" height="2" rx="1"/><rect x="3" y="13" width="18" height="2" rx="1"/><rect x="3" y="17" width="10" height="2" rx="1"/></svg>
+                  </button>
+                  <button type="button" className="format-btn" title="Align center" onClick={() => safeFormat("justifyCenter")}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="5" width="18" height="2" rx="1"/><rect x="6" y="9" width="12" height="2" rx="1"/><rect x="3" y="13" width="18" height="2" rx="1"/><rect x="7" y="17" width="10" height="2" rx="1"/></svg>
+                  </button>
+                  <button type="button" className="format-btn" title="Align right" onClick={() => safeFormat("justifyRight")}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="5" width="18" height="2" rx="1"/><rect x="9" y="9" width="12" height="2" rx="1"/><rect x="3" y="13" width="18" height="2" rx="1"/><rect x="11" y="17" width="10" height="2" rx="1"/></svg>
+                  </button>
+                </div>
+                <span className="fmt-sep" />
+                <button type="button" className="format-btn clear-btn" title="Clear formatting" onClick={() => safeFormat("removeFormat")}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6.3 18.9 12 13.2l5.7 5.7 1.4-1.4-5.7-5.7 5.7-5.7-1.4-1.4L12 10.4 6.3 4.7 4.9 6.1l5.7 5.7-5.7 5.7z"/></svg>
+                  <span className="fmt-btn-label">Clear</span>
+                </button>
               </div>
             </div>
           </>

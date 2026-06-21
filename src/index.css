@@ -396,66 +396,116 @@ input:focus {
   margin: 0 2px;
 }
 
-/* Edit bar: Save + scrollable format toolbar inline */
-.edit-bar {
+/* ── Formatting panel ───────────────────────────────────────── */
+.format-panel {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-  padding-bottom: 2px;
-}
-.edit-bar::-webkit-scrollbar { display: none; }
-.edit-bar #saveBtn { flex-shrink: 0; }
-
-/* The toolbar is always shown (not toggled) inside edit-bar */
-.format-toolbar {
-  display: none;
-  align-items: center;
+  flex-direction: column;
   gap: 6px;
-  padding: 4px;
+  padding: 8px 10px;
+  background: var(--panel-bg);
   border: 1px solid var(--input-border);
   border-radius: var(--radius-lg);
-  background: var(--panel-bg);
-  overflow-x: auto;
-  scrollbar-width: thin;
+}
+
+/* Each row inside the panel */
+.fmt-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;        /* wraps on small screens automatically */
+}
+
+/* Grouped buttons share a border */
+.fmt-group {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.fmt-group .format-btn {
+  border: none;
+  border-radius: 0;
+  border-right: 1px solid var(--input-border);
+}
+.fmt-group .format-btn:last-child {
+  border-right: none;
+}
+
+/* Vertical separator between groups */
+.fmt-sep {
+  width: 1px;
+  height: 28px;
+  background: var(--input-border);
   flex-shrink: 0;
 }
-.format-toolbar.open { display: flex; }
-.format-toolbar.always-open { display: flex; }
 
-/* Collapsible note metadata (name / author / password) */
-.meta-fields {
+/* Save button inside panel */
+.fmt-save {
+  padding: 8px 18px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.format-select,
+.format-btn {
+  height: 38px;
   border: 1px solid var(--input-border);
   border-radius: var(--radius-md);
   background: var(--input-bg);
-  overflow: hidden;
+  color: var(--text-color);
+  font-family: inherit;
+  font-size: 0.88rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
 }
+.format-select {
+  padding: 0 24px 0 10px;
+  min-width: 96px;
+}
+.font-select { min-width: 122px; }
+.size-select { min-width: 88px; }
+.format-btn {
+  min-width: 38px;
+  padding: 0 10px;
+  cursor: pointer;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.format-btn:hover { background: var(--hover-bg); }
+.bold-btn { font-weight: 900; }
+.italic-btn { font-style: italic; }
+.underline-btn { text-decoration: underline; }
+.fmt-btn-label { font-size: 0.82rem; }
+.clear-btn { gap: 4px; }
+
+/* Legacy classes kept for compatibility */
+.format-toolbar { display: none; }
+.format-toolbar.open, .format-toolbar.always-open { display: flex; }
+.format-divider { width: 1px; height: 22px; background: var(--input-border); margin: 0 2px; flex-shrink: 0; }
+.edit-bar { display: flex; align-items: center; gap: 8px; }
+
+/* Collapsible note metadata */
+.meta-fields { border: none; background: transparent; }
 .meta-summary {
   list-style: none;
   padding: 10px 14px;
   cursor: pointer;
-  font-size: 0.82rem;
+  font-size: 0.85rem;
   font-weight: 700;
   opacity: 0.65;
-  display: none; /* hidden on desktop, shown only on mobile */
+  display: none;
   user-select: none;
 }
 .meta-summary::-webkit-details-marker { display: none; }
-.meta-body {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 0;
-}
-.meta-fields[open] .meta-body { padding: 0; }
-/* On desktop, details always appears open and unstyled */
+.meta-body { display: flex; flex-direction: column; gap: 8px; padding: 0; }
 @media (min-width: 769px) {
   .meta-fields { border: none; background: transparent; }
   .meta-summary { display: none !important; }
-  .meta-body { padding: 0; }
 }
+
 .textarea-container {
   position: relative;
   flex: 1;
@@ -677,9 +727,7 @@ input:checked + .slider::before { transform: translateX(24px); }
 @media (max-width: 768px) {
   #sidebar {
     position: fixed;
-    left: 0;
-    top: 0;
-    bottom: 0;
+    left: 0; top: 0; bottom: 0;
     transform: translateX(-100%);
     box-shadow: var(--elev);
     width: min(88vw, 340px);
@@ -694,25 +742,33 @@ input:checked + .slider::before { transform: translateX(24px); }
   #noteContent { padding: 16px 14px 80px; }
   .zoom-controls { right: 12px; bottom: 12px; }
 
-  /* Show the collapsible summary on mobile */
+  /* Show collapsible note details toggle on mobile */
   .meta-summary { display: block; }
-  /* Remove meta-body inner padding on mobile (fields already have their own) */
+  .meta-fields {
+    border: 1px solid var(--input-border);
+    border-radius: var(--radius-md);
+    background: var(--input-bg);
+    overflow: hidden;
+  }
   .meta-fields[open] .meta-body {
-    padding: 0 10px 10px;
-    display: flex;
-    flex-direction: column;
+    padding: 10px 10px 12px;
     gap: 8px;
   }
 
-  /* Bigger tap targets for format buttons on mobile */
+  /* Format panel: bigger touch targets, wraps naturally */
+  .format-panel { padding: 8px; gap: 8px; }
+  .fmt-row { gap: 6px; }
   .format-btn, .format-select {
     height: 44px;
     min-width: 44px;
     font-size: 0.9rem;
   }
+  .format-btn svg { width: 20px; height: 20px; }
   .format-select { padding: 0 8px; }
   .font-select { min-width: 100px; }
   .size-select { min-width: 80px; }
+  .fmt-save { padding: 10px 20px; }
+  .fmt-sep { height: 32px; }
 }
 
 @media (min-width: 769px) {
