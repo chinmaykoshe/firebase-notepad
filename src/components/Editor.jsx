@@ -1,0 +1,215 @@
+import SearchPanel from "./SearchPanel.jsx";
+
+function Editor({
+    noteName,
+    author,
+    password,
+    isEditing,
+    isFullscreen,
+    formatToolbarOpen,
+    searchOpen,
+    exportOpen,
+    searchTerm,
+    matchInfo,
+    hasMatches,
+    onNoteNameChange,
+    onAuthorChange,
+    onPasswordChange,
+    onContentInput,
+    onPaste,
+    onKeyDown,
+    onSave,
+    onExportTXT,
+    onExportPDF,
+    onDeleteOpenNote,
+    onExtendNote,
+    onInsertTable,
+    onToggleEdit,
+    onToggleSearch,
+    onSearchChange,
+    onCloseSearch,
+    onPrevMatch,
+    onNextMatch,
+    onToggleExport,
+    onToggleFullscreen,
+    onOpenMenu,
+    onFormat,
+    onToggleFormatToolbar,
+    editorRef,
+    containerRef,
+  }) {
+  return (
+    <main id="main">
+      <header className="topbar">
+        <div className="left-group">
+          <button id="hamburgerBtn" className="icon-btn hamburger" aria-label="Menu" title="Menu" onClick={onOpenMenu}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M3 6h18v2H3V6zm0 5h18v2H3v-2zm0 5h18v2H3v-2z" />
+            </svg>
+          </button>
+          <h1 className="title">Notes</h1>
+          <div className="title-free">
+            <h6>
+              <a href="/index.html">Firebase Notepad</a>
+            </h6>
+          </div>
+        </div>
+
+        <div className="actions">
+          <button className="icon-btn toolbar-btn" id="findToggle" title="Find in note" onClick={onToggleSearch}>
+            Find
+          </button>
+          <button className="icon-btn toolbar-btn" id="editToggle" title="Toggle edit mode" onClick={onToggleEdit}>
+            {isEditing ? "Read" : "Edit"}
+          </button>
+          <div className="desktop-actions">
+            <button className="btn subtle-btn" onClick={onExportTXT}>TXT</button>
+            <button className="btn subtle-btn" onClick={onExportPDF}>PDF</button>
+            <button className="btn subtle-btn" id="extendBtn" onClick={onExtendNote}>Extend</button>
+            <button className="btn subtle-btn" onClick={onInsertTable}>Table</button>
+            <button className="btn danger-action" onClick={onDeleteOpenNote}>Delete</button>
+          </div>
+          <button
+            id="exportToggle"
+            className="icon-btn"
+            aria-haspopup="menu"
+            aria-expanded={exportOpen}
+            title="More actions"
+            onClick={onToggleExport}
+          >
+            More
+          </button>
+        </div>
+
+        <SearchPanel
+          open={searchOpen}
+          searchTerm={searchTerm}
+          matchInfo={matchInfo}
+          hasMatches={hasMatches}
+          onSearchChange={onSearchChange}
+          onClose={onCloseSearch}
+          onPrev={onPrevMatch}
+          onNext={onNextMatch}
+        />
+
+        <div className={`export-menu ${exportOpen ? "open" : ""}`} id="exportMenu">
+          <button className="export-menu-item" onClick={onExportTXT}>Export TXT</button>
+          <button className="export-menu-item" onClick={onExportPDF}>Export PDF</button>
+          <button className="export-menu-item" onClick={onExtendNote}>Extend 24h</button>
+          <button className="export-menu-item" onClick={onInsertTable}>Insert Table</button>
+          <button className="export-menu-item" onClick={onDeleteOpenNote}>Delete Note</button>
+        </div>
+      </header>
+
+      <section className="editor-panel">
+        {isEditing && (
+          <>
+            <input
+              id="noteName"
+              type="text"
+              placeholder="Note name"
+              value={noteName}
+              onChange={(event) => onNoteNameChange(event.target.value)}
+            />
+            <div className="author-field">
+              <input
+                id="noteAuthor"
+                type="text"
+                placeholder="Author name"
+                value={author}
+                onChange={(event) => onAuthorChange(event.target.value)}
+              />
+              <div className="password-wrapper">
+                <input
+                  id="notePassword"
+                  type="password"
+                  placeholder="Password (optional)"
+                  value={password}
+                  onChange={(event) => onPasswordChange(event.target.value)}
+                />
+              </div>
+            </div>
+            <div id="buttons">
+              <button className="btn" id="saveBtn" onClick={onSave}>Save</button>
+              <button
+                type="button"
+                className={`format-toggle icon-btn ${formatToolbarOpen ? "open" : ""}`}
+                title={formatToolbarOpen ? "Hide formatting options" : "Show formatting options"}
+                aria-expanded={formatToolbarOpen}
+                onClick={onToggleFormatToolbar}
+              >
+                ▾
+              </button>
+            </div>
+            <div className={`format-toolbar ${formatToolbarOpen ? "open" : ""}`} aria-label="Text formatting toolbar">
+              <select
+                className="format-select font-select"
+                defaultValue=""
+                title="Font"
+                onChange={(event) => {
+                  if (event.target.value) onFormat("fontName", event.target.value);
+                  event.target.value = "";
+                }}
+              >
+                <option value="">Font</option>
+                <option value="Arial">Arial</option>
+                <option value="Georgia">Georgia</option>
+                <option value="Courier New">Courier</option>
+                <option value="Times New Roman">Times</option>
+                <option value="Verdana">Verdana</option>
+              </select>
+              <select
+                className="format-select size-select"
+                defaultValue=""
+                title="Text size"
+                onChange={(event) => {
+                  if (event.target.value) onFormat("fontSize", event.target.value);
+                  event.target.value = "";
+                }}
+              >
+                <option value="">Size</option>
+                <option value="2">Small</option>
+                <option value="3">Normal</option>
+                <option value="4">Medium</option>
+                <option value="5">Large</option>
+                <option value="6">Huge</option>
+              </select>
+              <button type="button" className="format-btn" title="Bold" onClick={() => onFormat("bold")}>B</button>
+              <button type="button" className="format-btn italic" title="Italic" onClick={() => onFormat("italic")}>I</button>
+              <button type="button" className="format-btn underline" title="Underline" onClick={() => onFormat("underline")}>U</button>
+              <span className="format-divider" />
+              <button type="button" className="format-btn" title="Bullet list" onClick={() => onFormat("insertUnorderedList")}>• List</button>
+              <button type="button" className="format-btn" title="Numbered list" onClick={() => onFormat("insertOrderedList")}>1. List</button>
+              <button type="button" className="format-btn" title="Decrease indent" onClick={() => onFormat("outdent")}>Out</button>
+              <button type="button" className="format-btn" title="Increase indent" onClick={() => onFormat("indent")}>In</button>
+              <span className="format-divider" />
+              <button type="button" className="format-btn" title="Align left" onClick={() => onFormat("justifyLeft")}>Left</button>
+              <button type="button" className="format-btn" title="Align center" onClick={() => onFormat("justifyCenter")}>Center</button>
+              <button type="button" className="format-btn" title="Align right" onClick={() => onFormat("justifyRight")}>Right</button>
+              <button type="button" className="format-btn" title="Clear formatting" onClick={() => onFormat("removeFormat")}>Clear</button>
+            </div>
+          </>
+        )}
+
+        <div className="textarea-container" ref={containerRef}>
+          <div
+            id="noteContent"
+            ref={editorRef}
+            contentEditable={isEditing}
+            suppressContentEditableWarning
+            data-placeholder="Start typing..."
+            className={isEditing ? "" : "readonly"}
+            onInput={onContentInput}
+            onPaste={onPaste}
+            onKeyDown={onKeyDown}
+          />
+          <button className="icon-btn read-fs-btn" title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"} onClick={onToggleFullscreen}>
+            <img src={isFullscreen ? "/collapse.svg" : "/expand.svg"} alt="" />
+          </button>
+        </div>
+      </section>
+    </main>
+  );
+}
+
+export default Editor;
