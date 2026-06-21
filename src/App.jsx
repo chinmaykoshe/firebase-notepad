@@ -4,6 +4,8 @@ import Sidebar from "./components/Sidebar.jsx";
 import Editor from "./components/Editor.jsx";
 import PasswordDialog from "./components/PasswordDialog.jsx";
 import CustomDialog from "./components/CustomDialog.jsx";
+import CookieConsent from "./components/CookieConsent.jsx";
+import LegalDialog from "./components/LegalDialog.jsx";
 import {
   db,
   deleteDoc,
@@ -53,7 +55,7 @@ function App() {
   const [currentNoteId, setCurrentNoteId] = useState("");
   const [currentNotePassword, setCurrentNotePassword] = useState("");
   const [isEditing, setIsEditing] = useState(true);
-  const [theme, setTheme] = useState("dark");
+  const [theme, setTheme] = useState(() => localStorage.getItem("notepad-theme") || "dark");
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchText, setSearchText] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
@@ -67,6 +69,7 @@ function App() {
   const [dialog, setDialog] = useState(emptyDialog);
   const [passwordDialog, setPasswordDialog] = useState({ open: false, note: null, action: "open", title: "", authorText: "", submitText: "Open" });
   const [passwordInput, setPasswordInput] = useState("");
+  const [legalDialog, setLegalDialog] = useState({ open: false, type: "" });
 
   const filteredNotes = useMemo(() => {
     const text = searchText.trim().toLowerCase();
@@ -464,10 +467,9 @@ function App() {
       const escapeHtml = (str) =>
         String(str)
           .replace(/&/g, "&amp;")
-          .replace(/</g, "<")
-          .replace(/>/g, ">")
-
-          .replace(/\"/g, """)
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
           .replace(/'/g, "&#039;");
 
       const chunks = [];
@@ -481,7 +483,12 @@ function App() {
             chunks.push({ type: "table", html: node.outerHTML });
             return;
           }
-          Array.from(node.childNodes || []).forEach(visit);
+          if (node.querySelector && node.querySelector("table")) {
+            Array.from(node.childNodes || []).forEach(visit);
+            return;
+          }
+          const t = node.textContent;
+          if (t && t.trim()) chunks.push({ type: "text", html: t });
           return;
         }
 
@@ -568,6 +575,8 @@ function App() {
         onDeleteNote={deleteNote}
         onToggleTheme={setTheme}
         onToggleNoteMenu={setOpenMenuId}
+        onOpenPrivacy={() => setLegalDialog({ open: true, type: "privacy" })}
+        onOpenTerms={() => setLegalDialog({ open: true, type: "terms" })}
       />
       <Editor
         editorRef={editorRef}
@@ -641,6 +650,12 @@ function App() {
             closeDialog(dialog.mode === "alert" ? true : true);
           }
         }}
+      />
+      <CookieConsent />
+      <LegalDialog
+        isOpen={legalDialog.open}
+        type={legalDialog.type}
+        onClose={() => setLegalDialog({ open: false, type: "" })}
       />
     </>
   );

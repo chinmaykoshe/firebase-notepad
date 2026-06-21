@@ -19,6 +19,8 @@ function Sidebar({
   onDeleteNote,
   onToggleTheme,
   onToggleNoteMenu,
+  onOpenPrivacy,
+  onOpenTerms,
 }) {
   return (
     <aside id="sidebar" aria-label="Saved notes sidebar">
@@ -85,6 +87,12 @@ function Sidebar({
           />
           <span className="slider" />
         </label>
+      </div>
+      
+      <div style={{ marginTop: "16px", display: "flex", gap: "12px", justifyContent: "center", opacity: 0.6, fontSize: "0.8rem" }}>
+        <button className="subtle-btn" style={{ border: "none", padding: 0, minHeight: 0 }} onClick={onOpenPrivacy}>Privacy</button>
+        <span>&middot;</span>
+        <button className="subtle-btn" style={{ border: "none", padding: 0, minHeight: 0 }} onClick={onOpenTerms}>Terms</button>
       </div>
     </aside>
   );

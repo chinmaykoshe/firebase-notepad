@@ -1,4 +1,6 @@
+import { useState } from "react";
 import SearchPanel from "./SearchPanel.jsx";
+import ImageResizer from "./ImageResizer.jsx";
 
 function Editor({
     noteName,
@@ -38,6 +40,17 @@ function Editor({
     editorRef,
     containerRef,
   }) {
+  const [selectedImg, setSelectedImg] = useState(null);
+  const [zoomLevel, setZoomLevel] = useState(1);
+
+  const handleEditorClick = (e) => {
+    if (e.target.tagName === "IMG") {
+      setSelectedImg(e.target);
+    } else {
+      setSelectedImg(null);
+    }
+  };
+
   return (
     <main id="main">
       <header className="topbar">
@@ -191,18 +204,60 @@ function Editor({
           </>
         )}
 
-        <div className="textarea-container" ref={containerRef}>
           <div
-            id="noteContent"
-            ref={editorRef}
-            contentEditable={isEditing}
-            suppressContentEditableWarning
-            data-placeholder="Start typing..."
-            className={isEditing ? "" : "readonly"}
-            onInput={onContentInput}
-            onPaste={onPaste}
-            onKeyDown={onKeyDown}
-          />
+            className="textarea-container"
+            ref={containerRef}
+            onTouchStart={(e) => {
+              if (e.touches.length === 2) {
+                const dx = e.touches[0].clientX - e.touches[1].clientX;
+                const dy = e.touches[0].clientY - e.touches[1].clientY;
+                containerRef.current._initialDistance = Math.sqrt(dx * dx + dy * dy);
+                containerRef.current._initialZoom = zoomLevel;
+              }
+            }}
+            onTouchMove={(e) => {
+              if (e.touches.length === 2 && containerRef.current._initialDistance) {
+                const dx = e.touches[0].clientX - e.touches[1].clientX;
+                const dy = e.touches[0].clientY - e.touches[1].clientY;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                const scale = dist / containerRef.current._initialDistance;
+                const newZoom = Math.min(3.0, Math.max(0.5, containerRef.current._initialZoom * scale));
+                setZoomLevel(+(newZoom.toFixed(2)));
+              }
+            }}
+            onTouchEnd={(e) => {
+              if (e.touches.length < 2 && containerRef.current) {
+                containerRef.current._initialDistance = null;
+              }
+            }}
+          >
+            <div
+              id="noteContent"
+              ref={editorRef}
+              contentEditable={isEditing}
+              suppressContentEditableWarning
+              data-placeholder="Start typing..."
+              className={isEditing ? "" : "readonly"}
+              style={{ fontSize: `${zoomLevel}rem`, touchAction: "pan-x pan-y" }}
+              onInput={(e) => {
+                if (selectedImg && !selectedImg.isConnected) setSelectedImg(null);
+                onContentInput(e);
+              }}
+              onPaste={onPaste}
+              onKeyDown={(e) => {
+                if (e.key === "Backspace" || e.key === "Delete") setSelectedImg(null);
+                onKeyDown(e);
+              }}
+              onClick={handleEditorClick}
+            />
+            <ImageResizer imgElement={selectedImg} containerRef={containerRef} isEditing={isEditing} />
+          
+          <div className="zoom-controls">
+            <button className="icon-btn" title="Zoom out" onClick={() => setZoomLevel(z => Math.max(0.5, +(z - 0.1).toFixed(1)))}>-</button>
+            <span className="zoom-level">{Math.round(zoomLevel * 100)}%</span>
+            <button className="icon-btn" title="Zoom in" onClick={() => setZoomLevel(z => Math.min(3.0, +(z + 0.1).toFixed(1)))}>+</button>
+          </div>
+
           <button className="icon-btn read-fs-btn" title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"} onClick={onToggleFullscreen}>
             <img src={isFullscreen ? "/collapse.svg" : "/expand.svg"} alt="" />
           </button>
