@@ -364,7 +364,7 @@ input:focus {
 }
 .format-select,
 .format-btn {
-  height: 34px;
+  height: 40px;
   border: 1px solid var(--input-border);
   border-radius: var(--radius-md);
   background: var(--input-bg);
@@ -379,27 +379,82 @@ input:focus {
 .font-select { min-width: 132px; }
 .size-select { min-width: 96px; }
 .format-btn {
-  min-width: 34px;
-  padding: 0 10px;
+  min-width: 40px;
+  padding: 0 12px;
   cursor: pointer;
   font-weight: 700;
   white-space: nowrap;
 }
-.format-btn:hover {
-  background: var(--hover-bg);
-}
-.format-btn.italic {
-  font-style: italic;
-}
-.format-btn.underline {
-  text-decoration: underline;
-}
+.format-btn:hover { background: var(--hover-bg); }
+.format-btn.italic { font-style: italic; }
+.format-btn.underline { text-decoration: underline; }
 .format-divider {
   width: 1px;
   height: 22px;
   flex: 0 0 auto;
   background: var(--input-border);
   margin: 0 2px;
+}
+
+/* Edit bar: Save + scrollable format toolbar inline */
+.edit-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  padding-bottom: 2px;
+}
+.edit-bar::-webkit-scrollbar { display: none; }
+.edit-bar #saveBtn { flex-shrink: 0; }
+
+/* The toolbar is always shown (not toggled) inside edit-bar */
+.format-toolbar {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-lg);
+  background: var(--panel-bg);
+  overflow-x: auto;
+  scrollbar-width: thin;
+  flex-shrink: 0;
+}
+.format-toolbar.open { display: flex; }
+.format-toolbar.always-open { display: flex; }
+
+/* Collapsible note metadata (name / author / password) */
+.meta-fields {
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-md);
+  background: var(--input-bg);
+  overflow: hidden;
+}
+.meta-summary {
+  list-style: none;
+  padding: 10px 14px;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 700;
+  opacity: 0.65;
+  display: none; /* hidden on desktop, shown only on mobile */
+  user-select: none;
+}
+.meta-summary::-webkit-details-marker { display: none; }
+.meta-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0;
+}
+.meta-fields[open] .meta-body { padding: 0; }
+/* On desktop, details always appears open and unstyled */
+@media (min-width: 769px) {
+  .meta-fields { border: none; background: transparent; }
+  .meta-summary { display: none !important; }
+  .meta-body { padding: 0; }
 }
 .textarea-container {
   position: relative;
@@ -635,9 +690,29 @@ input:checked + .slider::before { transform: translateX(24px); }
   .desktop-actions { display: none; }
   #exportToggle { display: inline-flex; }
   .search-panel { right: 10px; left: 10px; min-width: auto; }
-  .editor-panel { padding: var(--space-md); }
-  #noteContent { padding: 24px 20px 60px; }
+  .editor-panel { padding: var(--space-md); gap: 8px; }
+  #noteContent { padding: 16px 14px 80px; }
   .zoom-controls { right: 12px; bottom: 12px; }
+
+  /* Show the collapsible summary on mobile */
+  .meta-summary { display: block; }
+  /* Remove meta-body inner padding on mobile (fields already have their own) */
+  .meta-fields[open] .meta-body {
+    padding: 0 10px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  /* Bigger tap targets for format buttons on mobile */
+  .format-btn, .format-select {
+    height: 44px;
+    min-width: 44px;
+    font-size: 0.9rem;
+  }
+  .format-select { padding: 0 8px; }
+  .font-select { min-width: 100px; }
+  .size-select { min-width: 80px; }
 }
 
 @media (min-width: 769px) {

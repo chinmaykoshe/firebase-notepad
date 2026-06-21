@@ -117,89 +117,88 @@ function Editor({
       <section className="editor-panel">
         {isEditing && (
           <>
-            <input
-              id="noteName"
-              type="text"
-              placeholder="Note name"
-              value={noteName}
-              onChange={(event) => onNoteNameChange(event.target.value)}
-            />
-            <div className="author-field">
-              <input
-                id="noteAuthor"
-                type="text"
-                placeholder="Author name"
-                value={author}
-                onChange={(event) => onAuthorChange(event.target.value)}
-              />
-              <div className="password-wrapper">
+            {/* Note metadata: collapses on mobile */}
+            <details className="meta-fields" open>
+              <summary className="meta-summary">Note details ▾</summary>
+              <div className="meta-body">
                 <input
-                  id="notePassword"
-                  type="password"
-                  placeholder="Password (optional)"
-                  value={password}
-                  onChange={(event) => onPasswordChange(event.target.value)}
+                  id="noteName"
+                  type="text"
+                  placeholder="Note name"
+                  value={noteName}
+                  onChange={(event) => onNoteNameChange(event.target.value)}
                 />
+                <div className="author-field">
+                  <input
+                    id="noteAuthor"
+                    type="text"
+                    placeholder="Author name"
+                    value={author}
+                    onChange={(event) => onAuthorChange(event.target.value)}
+                  />
+                  <div className="password-wrapper">
+                    <input
+                      id="notePassword"
+                      type="password"
+                      placeholder="Password (optional)"
+                      value={password}
+                      onChange={(event) => onPasswordChange(event.target.value)}
+                    />
+                  </div>
+                </div>
               </div>
-            </div>
-            <div id="buttons">
+            </details>
+
+            {/* Formatting toolbar — always visible, scrolls horizontally */}
+            <div className="edit-bar">
               <button className="btn" id="saveBtn" onClick={onSave}>Save</button>
-              <button
-                type="button"
-                className={`format-toggle icon-btn ${formatToolbarOpen ? "open" : ""}`}
-                title={formatToolbarOpen ? "Hide formatting options" : "Show formatting options"}
-                aria-expanded={formatToolbarOpen}
-                onClick={onToggleFormatToolbar}
-              >
-                ▾
-              </button>
-            </div>
-            <div className={`format-toolbar ${formatToolbarOpen ? "open" : ""}`} aria-label="Text formatting toolbar">
-              <select
-                className="format-select font-select"
-                defaultValue=""
-                title="Font"
-                onChange={(event) => {
-                  if (event.target.value) onFormat("fontName", event.target.value);
-                  event.target.value = "";
-                }}
-              >
-                <option value="">Font</option>
-                <option value="Arial">Arial</option>
-                <option value="Georgia">Georgia</option>
-                <option value="Courier New">Courier</option>
-                <option value="Times New Roman">Times</option>
-                <option value="Verdana">Verdana</option>
-              </select>
-              <select
-                className="format-select size-select"
-                defaultValue=""
-                title="Text size"
-                onChange={(event) => {
-                  if (event.target.value) onFormat("fontSize", event.target.value);
-                  event.target.value = "";
-                }}
-              >
-                <option value="">Size</option>
-                <option value="2">Small</option>
-                <option value="3">Normal</option>
-                <option value="4">Medium</option>
-                <option value="5">Large</option>
-                <option value="6">Huge</option>
-              </select>
-              <button type="button" className="format-btn" title="Bold" onClick={() => onFormat("bold")}>B</button>
-              <button type="button" className="format-btn italic" title="Italic" onClick={() => onFormat("italic")}>I</button>
-              <button type="button" className="format-btn underline" title="Underline" onClick={() => onFormat("underline")}>U</button>
-              <span className="format-divider" />
-              <button type="button" className="format-btn" title="Bullet list" onClick={() => onFormat("insertUnorderedList")}>• List</button>
-              <button type="button" className="format-btn" title="Numbered list" onClick={() => onFormat("insertOrderedList")}>1. List</button>
-              <button type="button" className="format-btn" title="Decrease indent" onClick={() => onFormat("outdent")}>Out</button>
-              <button type="button" className="format-btn" title="Increase indent" onClick={() => onFormat("indent")}>In</button>
-              <span className="format-divider" />
-              <button type="button" className="format-btn" title="Align left" onClick={() => onFormat("justifyLeft")}>Left</button>
-              <button type="button" className="format-btn" title="Align center" onClick={() => onFormat("justifyCenter")}>Center</button>
-              <button type="button" className="format-btn" title="Align right" onClick={() => onFormat("justifyRight")}>Right</button>
-              <button type="button" className="format-btn" title="Clear formatting" onClick={() => onFormat("removeFormat")}>Clear</button>
+              <div className={`format-toolbar always-open`} aria-label="Text formatting toolbar">
+                <select
+                  className="format-select font-select"
+                  defaultValue=""
+                  title="Font"
+                  onChange={(event) => {
+                    if (event.target.value) onFormat("fontName", event.target.value);
+                    event.target.value = "";
+                  }}
+                >
+                  <option value="">Font</option>
+                  <option value="Arial">Arial</option>
+                  <option value="Georgia">Georgia</option>
+                  <option value="Courier New">Courier</option>
+                  <option value="Times New Roman">Times</option>
+                  <option value="Verdana">Verdana</option>
+                </select>
+                <select
+                  className="format-select size-select"
+                  defaultValue=""
+                  title="Text size"
+                  onChange={(event) => {
+                    if (event.target.value) onFormat("fontSize", event.target.value);
+                    event.target.value = "";
+                  }}
+                >
+                  <option value="">Size</option>
+                  <option value="2">Small</option>
+                  <option value="3">Normal</option>
+                  <option value="4">Medium</option>
+                  <option value="5">Large</option>
+                  <option value="6">Huge</option>
+                </select>
+                <button type="button" className="format-btn" title="Bold" onClick={() => onFormat("bold")}>B</button>
+                <button type="button" className="format-btn italic" title="Italic" onClick={() => onFormat("italic")}>I</button>
+                <button type="button" className="format-btn underline" title="Underline" onClick={() => onFormat("underline")}>U</button>
+                <span className="format-divider" />
+                <button type="button" className="format-btn" title="Bullet list" onClick={() => onFormat("insertUnorderedList")}>• List</button>
+                <button type="button" className="format-btn" title="Numbered list" onClick={() => onFormat("insertOrderedList")}>1. List</button>
+                <button type="button" className="format-btn" title="Outdent" onClick={() => onFormat("outdent")}>Out</button>
+                <button type="button" className="format-btn" title="Indent" onClick={() => onFormat("indent")}>In</button>
+                <span className="format-divider" />
+                <button type="button" className="format-btn" title="Align left" onClick={() => onFormat("justifyLeft")}>Left</button>
+                <button type="button" className="format-btn" title="Align center" onClick={() => onFormat("justifyCenter")}>Center</button>
+                <button type="button" className="format-btn" title="Align right" onClick={() => onFormat("justifyRight")}>Right</button>
+                <button type="button" className="format-btn" title="Clear formatting" onClick={() => onFormat("removeFormat")}>Clear</button>
+              </div>
             </div>
           </>
         )}
@@ -250,7 +249,7 @@ function Editor({
               }}
               onClick={handleEditorClick}
             />
-            <ImageResizer imgElement={selectedImg} containerRef={containerRef} isEditing={isEditing} />
+            <ImageResizer imgElement={selectedImg} containerRef={containerRef} isEditing={isEditing} onDeselect={() => setSelectedImg(null)} />
           
           <div className="zoom-controls">
             <button className="icon-btn" title="Zoom out" onClick={() => setZoomLevel(z => Math.max(0.5, +(z - 0.1).toFixed(1)))}>-</button>
