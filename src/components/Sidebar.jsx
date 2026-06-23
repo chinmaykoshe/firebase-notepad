@@ -1,3 +1,12 @@
+const THEMES = [
+  { id: "dark",     label: "Dark",     bg: "#202124", dot: "#e8eaed" },
+  { id: "light",    label: "Light",    bg: "#f8fafd", dot: "#202124" },
+  { id: "sepia",    label: "Sepia",    bg: "#f4ede4", dot: "#3d2b1f" },
+  { id: "ocean",    label: "Ocean",    bg: "#0a1628", dot: "#0ea5e9" },
+  { id: "forest",   label: "Forest",   bg: "#1a2318", dot: "#4caf50" },
+  { id: "midnight", label: "Midnight", bg: "#0f0e17", dot: "#7c5cfc" },
+];
+
 function formatExpiry(expiry) {
   if (!expiry) return "No expiration";
   const date = expiry.toDate ? expiry.toDate() : new Date(expiry);
@@ -77,16 +86,24 @@ function Sidebar({
       </div>
 
       <div className="theme-row">
-        <label id="themeToggleLabel">Light Mode</label>
-        <label className="switch">
-          <input
-            type="checkbox"
-            id="themeToggle"
-            checked={theme === "light"}
-            onChange={(event) => onToggleTheme(event.target.checked ? "light" : "dark")}
-          />
-          <span className="slider" />
-        </label>
+        <span className="theme-label">Theme</span>
+        <div className="theme-swatches">
+          {THEMES.map((t) => (
+            <button
+              key={t.id}
+              title={t.label}
+              aria-label={`${t.label} theme`}
+              aria-pressed={theme === t.id}
+              className={`theme-swatch${theme === t.id ? " active" : ""}`}
+              style={{
+                background: `radial-gradient(circle at 65% 35%, ${t.dot}44 0%, ${t.bg} 55%)`,
+                backgroundColor: t.bg,
+                outline: "none",
+              }}
+              onClick={() => onToggleTheme(t.id)}
+            />
+          ))}
+        </div>
       </div>
       
       <div style={{ marginTop: "16px", display: "flex", gap: "12px", justifyContent: "center", opacity: 0.6, fontSize: "0.8rem" }}>

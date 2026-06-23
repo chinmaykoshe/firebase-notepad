@@ -144,6 +144,7 @@ function App() {
   useEffect(() => {
     const savedTheme = localStorage.getItem("notepad-theme") || "dark";
     setTheme(savedTheme);
+    document.body.setAttribute("data-theme", savedTheme);
     loadList().catch((error) => showAlert(`Error loading notes: ${error.message}`, "Error", "danger"));
     autoDeleteExpiredNotes().catch(console.error);
     const interval = setInterval(() => autoDeleteExpiredNotes().catch(console.error), 5 * 60 * 60 * 1000);
@@ -151,7 +152,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    document.body.classList.toggle("light-mode", theme === "light");
+    document.body.setAttribute("data-theme", theme);
     document.body.classList.toggle("menu-open", menuOpen);
     localStorage.setItem("notepad-theme", theme);
   }, [theme, menuOpen]);
