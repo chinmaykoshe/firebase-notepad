@@ -23,6 +23,12 @@
         "projectId": "c3ae13ee-db20-49d6-a62c-03697dba4d24"
       }
     },
-    "owner": "chinmaykoshes-organization"
+    "owner": "chinmaykoshes-organization",
+    "ios": {
+      "bundleIdentifier": "com.freenote.notepad",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    }
   }
 }
