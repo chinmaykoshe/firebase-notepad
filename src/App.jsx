@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { jsPDF } from "jspdf";
 import Sidebar from "./components/Sidebar.jsx";
 import Editor from "./components/Editor.jsx";
@@ -34,6 +34,19 @@ const emptyDialog = {
   cols: 3,
 };
 
+// Slash commands for Notion-like block insertion
+const SLASH_COMMANDS = [
+  { id: "h1",      label: "Heading 1",    icon: "H1",  hint: "Large section heading" },
+  { id: "h2",      label: "Heading 2",    icon: "H2",  hint: "Medium section heading" },
+  { id: "h3",      label: "Heading 3",    icon: "H3",  hint: "Small section heading" },
+  { id: "ul",      label: "Bullet List",  icon: "•—",  hint: "Unordered list" },
+  { id: "ol",      label: "Numbered List",icon: "1.",  hint: "Ordered list" },
+  { id: "table",   label: "Table",        icon: "⊞",   hint: "Insert a table" },
+  { id: "code",    label: "Code Block",   icon: "</>", hint: "Preformatted code" },
+  { id: "divider", label: "Divider",      icon: "—",   hint: "Horizontal rule" },
+  { id: "quote",   label: "Quote",        icon: "\"",   hint: "Block quotation" },
+];
+
 function normalizeEditorHtml(html) {
   const cleaned = (html || "")
     .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "")
@@ -41,6 +54,59 @@ function normalizeEditorHtml(html) {
     .replace(/\son\w+='[^']*'/gi, "")
     .trim();
   return cleaned === "<br>" ? "" : cleaned;
+}
+
+/**
+ * Clean pasted HTML: strip Word/MSO noise, inline styles, class attrs,
+ * keep only safe semantic tags and their content.
+ */
+function cleanPastedHtml(html) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, "text/html");
+
+  // Remove Word/MSO conditional comments, xml tags, style/meta blocks
+  const STRIP_TAGS = ["style", "meta", "link", "script", "xml", "o:p", "w:sdt", "w:sdtContent"];
+  STRIP_TAGS.forEach((tag) => doc.querySelectorAll(tag).forEach((el) => el.remove()));
+
+  // Walk all elements and clean attributes / unwanted spans
+  const walk = (node) => {
+    if (node.nodeType !== 1) return;
+    // Remove class and style attributes (Word junk)
+    node.removeAttribute("class");
+    node.removeAttribute("style");
+    node.removeAttribute("lang");
+    node.removeAttribute("valign");
+    node.removeAttribute("nowrap");
+    node.removeAttribute("bgcolor");
+    node.removeAttribute("width");
+    node.removeAttribute("height");
+    // Remove MSO / data attributes
+    Array.from(node.attributes).forEach((attr) => {
+      if (attr.name.startsWith("data-") || attr.name.startsWith("x:") || attr.name.startsWith("o:")) {
+        node.removeAttribute(attr.name);
+      }
+    });
+    Array.from(node.childNodes).forEach(walk);
+  };
+  walk(doc.body);
+
+  // Unwrap meaningless <span> / <font> wrappers that have no attrs left
+  doc.querySelectorAll("span, font").forEach((el) => {
+    if (!el.attributes.length) {
+      const frag = doc.createDocumentFragment();
+      while (el.firstChild) frag.appendChild(el.firstChild);
+      el.replaceWith(frag);
+    }
+  });
+
+  // Collapse empty <p> / <div> runs to single <br>
+  doc.querySelectorAll("p, div").forEach((el) => {
+    if (!el.textContent.trim() && !el.querySelector("img, table, br")) {
+      el.replaceWith(doc.createElement("br"));
+    }
+  });
+
+  return doc.body.innerHTML;
 }
 
 function App() {
@@ -70,6 +136,8 @@ function App() {
   const [passwordDialog, setPasswordDialog] = useState({ open: false, note: null, action: "open", title: "", authorText: "", submitText: "Open" });
   const [passwordInput, setPasswordInput] = useState("");
   const [legalDialog, setLegalDialog] = useState({ open: false, type: "" });
+  const [slashCmd, setSlashCmd] = useState({ open: false, query: "", anchor: null });
+  const slashMenuRef = useRef(null);
 
   const filteredNotes = useMemo(() => {
     const text = searchText.trim().toLowerCase();
@@ -455,60 +523,79 @@ function App() {
   function handlePaste(event) {
     if (!isEditing) return;
 
+    const clipboardTypes = event.clipboardData.types;
+    const hasHtml = clipboardTypes.includes("text/html");
     const text = event.clipboardData.getData("text/plain");
-    const html = event.clipboardData.getData("text/html");
+    const html = hasHtml ? event.clipboardData.getData("text/html") : "";
 
-    // If Word clipboard contains both paragraphs and <table>, insert:
-    // - non-table text as word content
-    // - table(s) as tables
-    if (html && html.toLowerCase().includes("<table")) {
+    // Ctrl+Shift+V or similar: only plain text available — always paste as plain text
+    if (!hasHtml || !html.trim()) {
       event.preventDefault();
+      if (!text.trim()) return;
 
-      const parsed = new DOMParser().parseFromString(html, "text/html");
-      const tables = Array.from(parsed.querySelectorAll("table"));
-      const body = parsed.body;
-
-      const escapeHtml = (str) =>
-        String(str)
+      // Tab-delimited plain text -> auto table
+      const rows = text.trim().split("\n").map((line) => line.split("\t"));
+      if (rows.length > 1 && rows.some((row) => row.length > 1)) {
+        insertHtmlAtCursor(createHtmlTable(rows.length, Math.max(...rows.map((r) => r.length)), rows));
+      } else {
+        // Insert as plain text preserving line breaks
+        const escaped = text
           .replace(/&/g, "&amp;")
           .replace(/</g, "&lt;")
           .replace(/>/g, "&gt;")
-          .replace(/"/g, "&quot;")
-          .replace(/'/g, "&#039;");
+          .replace(/\n/g, "<br>");
+        insertHtmlAtCursor(`<span>${escaped}</span>`);
+      }
+      return;
+    }
 
+    // HTML paste — check for tables first
+    const lowerHtml = html.toLowerCase();
+    if (lowerHtml.includes("<table")) {
+      event.preventDefault();
+      const cleaned = cleanPastedHtml(html);
+      const parsed = new DOMParser().parseFromString(cleaned, "text/html");
+      const body = parsed.body;
+
+      // Walk top-level children, split on table vs non-table content
       const chunks = [];
-
       const visit = (node) => {
         if (!node) return;
-
         if (node.nodeType === 1) {
-          const name = node.nodeName?.toLowerCase?.();
+          const name = node.nodeName.toLowerCase();
           if (name === "table") {
+            // Wrap table with our class
+            node.classList.add("freenote-table");
             chunks.push({ type: "table", html: node.outerHTML });
             return;
           }
+          // Container that wraps a table — recurse into children
           if (node.querySelector && node.querySelector("table")) {
-            Array.from(node.childNodes || []).forEach(visit);
+            Array.from(node.childNodes).forEach(visit);
             return;
           }
-          const t = node.textContent;
-          if (t && t.trim()) chunks.push({ type: "text", html: t });
+          const t = (node.textContent || "").trim();
+          if (t) chunks.push({ type: "block", html: node.outerHTML });
           return;
         }
-
         if (node.nodeType === Node.TEXT_NODE) {
-          const t = node.textContent;
-          if (t && t.trim()) chunks.push({ type: "text", html: t });
+          const t = (node.textContent || "").trim();
+          if (t) chunks.push({ type: "block", html: `<p>${t}</p>` });
         }
       };
 
-      if (body) Array.from(body.childNodes).forEach(visit);
+      Array.from(body.childNodes).forEach(visit);
 
-      if (!chunks.length && tables.length) {
-        if (text && text.trim()) {
-          insertHtmlAtCursor(`${escapeHtml(text).replace(/\n/g, "<br/>")}<p><br></p>`);
+      if (!chunks.length) {
+        // Fallback: insert plain text then any tables found
+        if (text.trim()) {
+          const escaped = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>");
+          insertHtmlAtCursor(`<p>${escaped}</p>`);
         }
-        tables.forEach((t) => insertHtmlAtCursor(`${t.outerHTML}<p><br></p>`));
+        parsed.querySelectorAll("table").forEach((t) => {
+          t.classList.add("freenote-table");
+          insertHtmlAtCursor(`${t.outerHTML}<p><br></p>`);
+        });
         return;
       }
 
@@ -516,38 +603,92 @@ function App() {
         if (chunk.type === "table") {
           insertHtmlAtCursor(`${chunk.html}<p><br></p>`);
         } else {
-          const raw = chunk.html || "";
-          if (!raw.trim()) return;
-          insertHtmlAtCursor(`${escapeHtml(raw).replace(/\n/g, "<br/>")}<p><br></p>`);
+          insertHtmlAtCursor(chunk.html);
         }
       });
-
-      if (tables.length && !chunks.some((c) => c.type === "table")) {
-        tables.forEach((t) => insertHtmlAtCursor(`${t.outerHTML}<p><br></p>`));
-      }
-
       return;
     }
 
-    // Tab-delimited -> auto-table
-    const rows = text.trim().split("\n").map((line) => line.split("\t"));
-    if (rows.length > 1 && rows.some((row) => row.length > 1)) {
-      event.preventDefault();
-      insertHtmlAtCursor(createHtmlTable(rows.length, Math.max(...rows.map((row) => row.length)), rows));
+    // Rich HTML paste (no tables) — clean and insert
+    event.preventDefault();
+    const cleaned = cleanPastedHtml(html);
+    if (cleaned.trim()) {
+      insertHtmlAtCursor(cleaned);
+    } else if (text.trim()) {
+      const escaped = text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\n/g, "<br>");
+      insertHtmlAtCursor(`<span>${escaped}</span>`);
     }
   }
 
   function handleEditorKeyDown(event) {
-    if (!isEditing || event.key !== "Tab") return;
-    const cell =
-      document.activeElement.closest?.("td, th") || window.getSelection().anchorNode?.parentElement?.closest?.("td, th");
-    if (!cell || !editorRef.current?.contains(cell)) return;
-    event.preventDefault();
-    const cells = [...editorRef.current.querySelectorAll("th, td")];
-    const index = cells.indexOf(cell);
-    const nextIndex = event.shiftKey ? Math.max(0, index - 1) : Math.min(cells.length - 1, index + 1);
-    cells[nextIndex]?.focus();
-    if (cells[nextIndex]) placeCaretInside(cells[nextIndex]);
+    if (!isEditing) return;
+
+    const editor = editorRef.current;
+    const sel = window.getSelection();
+    const anchorNode = sel?.anchorNode;
+
+    // ── Tab key ─────────────────────────────────────────────────────────────
+    if (event.key === "Tab") {
+      // Table navigation
+      const cell =
+        document.activeElement.closest?.("td, th") ||
+        anchorNode?.parentElement?.closest?.("td, th");
+      if (cell && editor?.contains(cell)) {
+        event.preventDefault();
+        const cells = [...editor.querySelectorAll("th, td")];
+        const index = cells.indexOf(cell);
+        const nextIndex = event.shiftKey ? Math.max(0, index - 1) : Math.min(cells.length - 1, index + 1);
+        cells[nextIndex]?.focus();
+        if (cells[nextIndex]) placeCaretInside(cells[nextIndex]);
+        return;
+      }
+      // List indentation
+      const listItem = anchorNode?.parentElement?.closest?.("li");
+      if (listItem && editor?.contains(listItem)) {
+        event.preventDefault();
+        document.execCommand(event.shiftKey ? "outdent" : "indent", false, null);
+        return;
+      }
+      // Default: insert 2 spaces instead of focusing next element
+      event.preventDefault();
+      document.execCommand("insertText", false, "  ");
+      return;
+    }
+
+    // ── Enter on empty list item → exit list ────────────────────────────────
+    if (event.key === "Enter" && !event.shiftKey) {
+      const listItem = anchorNode?.parentElement?.closest?.("li");
+      if (listItem && editor?.contains(listItem) && !listItem.textContent.trim()) {
+        event.preventDefault();
+        // Outdent or break out of list
+        const list = listItem.closest("ul, ol");
+        if (list) {
+          document.execCommand("outdent", false, null);
+          // If we're still in a list item after outdent, convert to paragraph
+          const stillIn = window.getSelection()?.anchorNode?.parentElement?.closest?.("li");
+          if (stillIn) {
+            document.execCommand("outdent", false, null);
+          }
+        }
+        return;
+      }
+    }
+
+    // ── Slash command trigger ────────────────────────────────────────────────
+    // Only fire when / is typed and caret is at start of an empty block
+    if (event.key === "/" && !event.ctrlKey && !event.metaKey) {
+      const block =
+        anchorNode?.parentElement?.closest?.("p, div, h1, h2, h3, h4, h5, h6") ||
+        anchorNode?.parentElement;
+      if (block && editor?.contains(block) && !block.textContent.trim()) {
+        // Let the / be inserted first, then show the menu
+        setTimeout(() => setSlashCmd({ open: true, query: "", anchor: block }), 0);
+      }
+    }
   }
 
   async function toggleFullscreen() {
@@ -561,6 +702,112 @@ function App() {
     document.execCommand(command, false, value);
     if (searchTerm) applyHighlights(searchTerm);
   }
+
+  // Close slash menu on outside click / Escape
+  useEffect(() => {
+    if (!slashCmd.open) return;
+    const onKey = (e) => {
+      if (e.key === "Escape") {
+        setSlashCmd((s) => ({ ...s, open: false }));
+        editorRef.current?.focus();
+      }
+    };
+    const onDown = (e) => {
+      if (slashMenuRef.current && !slashMenuRef.current.contains(e.target)) {
+        setSlashCmd((s) => ({ ...s, open: false }));
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("mousedown", onDown);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("mousedown", onDown);
+    };
+  }, [slashCmd.open]);
+
+  async function executeSlashCommand(cmdId) {
+    // Remove the trailing slash that triggered the menu
+    const anchor = slashCmd.anchor;
+    setSlashCmd({ open: false, query: "", anchor: null });
+
+    // Clean up the / that was typed to open the menu
+    if (anchor && anchor.isConnected) {
+      anchor.textContent = "";
+      // Place caret inside the empty block
+      placeCaretInside(anchor);
+    }
+    editorRef.current?.focus();
+
+    switch (cmdId) {
+      case "h1":
+        document.execCommand("formatBlock", false, "h1"); break;
+      case "h2":
+        document.execCommand("formatBlock", false, "h2"); break;
+      case "h3":
+        document.execCommand("formatBlock", false, "h3"); break;
+      case "ul":
+        document.execCommand("insertUnorderedList", false, null); break;
+      case "ol":
+        document.execCommand("insertOrderedList", false, null); break;
+      case "table": {
+        const value = await showTableDialog();
+        if (value) insertHtmlAtCursor(createHtmlTable(value.rows, value.cols));
+        break;
+      }
+      case "code": {
+        const pre = document.createElement("pre");
+        pre.className = "freenote-code";
+        pre.textContent = "";
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount) {
+          const range = sel.getRangeAt(0);
+          range.deleteContents();
+          range.insertNode(pre);
+          placeCaretInside(pre);
+        } else {
+          editorRef.current?.appendChild(pre);
+          placeCaretInside(pre);
+        }
+        break;
+      }
+      case "divider":
+        document.execCommand("insertHorizontalRule", false, null);
+        break;
+      case "quote":
+        document.execCommand("formatBlock", false, "blockquote");
+        break;
+      default: break;
+    }
+  }
+
+  // Filtered slash commands based on query typed after /
+  const filteredSlashCmds = useMemo(() => {
+    const q = slashCmd.query.toLowerCase();
+    if (!q) return SLASH_COMMANDS;
+    return SLASH_COMMANDS.filter(
+      (c) => c.label.toLowerCase().includes(q) || c.id.includes(q)
+    );
+  }, [slashCmd.query]);
+
+  // Listen for typing after / to filter slash menu
+  useEffect(() => {
+    if (!slashCmd.open) return;
+    const onKey = (e) => {
+      if (e.key === "Backspace") {
+        setSlashCmd((s) => ({
+          ...s,
+          query: s.query.slice(0, -1),
+          open: s.query.length > 0,
+        }));
+        return;
+      }
+      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+        setSlashCmd((s) => ({ ...s, query: s.query + e.key }));
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [slashCmd.open]);
 
   return (
     <>
@@ -661,6 +908,38 @@ function App() {
         type={legalDialog.type}
         onClose={() => setLegalDialog({ open: false, type: "" })}
       />
+
+      {/* Notion-style slash command menu */}
+      {slashCmd.open && (
+        <div
+          className="slash-menu"
+          ref={slashMenuRef}
+          role="menu"
+          aria-label="Block type picker"
+        >
+          <div className="slash-menu-header">Turn into &rarr;</div>
+          {filteredSlashCmds.length === 0 && (
+            <div className="slash-menu-empty">No commands match</div>
+          )}
+          {filteredSlashCmds.map((cmd) => (
+            <button
+              key={cmd.id}
+              className="slash-menu-item"
+              role="menuitem"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                executeSlashCommand(cmd.id);
+              }}
+            >
+              <span className="slash-menu-icon">{cmd.icon}</span>
+              <span className="slash-menu-text">
+                <span className="slash-menu-label">{cmd.label}</span>
+                <span className="slash-menu-hint">{cmd.hint}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
     </>
   );
 }

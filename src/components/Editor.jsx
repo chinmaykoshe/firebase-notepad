@@ -292,7 +292,7 @@ function Editor({
               ref={editorRef}
               contentEditable={isEditing}
               suppressContentEditableWarning
-              data-placeholder="Start typing..."
+              data-placeholder="Start typing... or type / for commands"
               className={isEditing ? "" : "readonly"}
               style={{ fontSize: `${zoomLevel}rem`, touchAction: "pan-x pan-y" }}
               onInput={(e) => {

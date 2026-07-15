@@ -1,0 +1,18 @@
+{
+  "expo": {
+    "name": "Firebase Notepad",
+    "slug": "firebase-notepad",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": false,
+    "platforms": ["android", "ios", "web"],
+    "android": {
+      "package": "com.freenote.notepad"
+    },
+    "plugins": [
+      "expo-status-bar",
+      "expo-sharing"
+    ]
+  }
+}

@@ -3,3 +3,12 @@ dist/
 .env
 .env.local
 .env.*.local
+
+# Android / Capacitor
+android/app/build/
+android/.gradle/
+android/build/
+android/captures/
+android/local.properties
+*.apk
+*.aab
