@@ -20,13 +20,13 @@ import {
 // Replace these with your own Firebase project credentials.
 // You can find them in Firebase Console → Project Settings → Your Apps.
 const firebaseConfig = {
-  apiKey: "AIzaSyDyswlJTIm4NuhnAv8dNG8ij6zq0L8FmcU",
-  authDomain: "txtfileviewer.firebaseapp.com",
-  projectId: "txtfileviewer",
-  storageBucket: "txtfileviewer.firebasestorage.app",
-  messagingSenderId: "185707122313",
-  appId: "1:185707122313:web:45b14964453e8139cb8058",
-  measurementId: "G-ELZ4NBL705"
+  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
+  measurementId: process.env.EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID
 };
 
 const app = initializeApp(firebaseConfig);

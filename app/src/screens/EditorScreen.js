@@ -178,10 +178,10 @@ export default function EditorScreen({ route, navigation }) {
         <View style={styles.headerRight}>
           {isEditing ? (
             <>
-              <TouchableOpacity onPress={() => richText.current?.undo()}>
+              <TouchableOpacity onPress={() => richText.current?.commandDOM('undo')}>
                 <Ionicons name="return-up-back-outline" size={22} color={colors.textMuted} />
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => richText.current?.redo()}>
+              <TouchableOpacity onPress={() => richText.current?.commandDOM('redo')}>
                 <Ionicons name="return-up-forward-outline" size={22} color={colors.textMuted} />
               </TouchableOpacity>
               <TouchableOpacity onPress={handleSave}>

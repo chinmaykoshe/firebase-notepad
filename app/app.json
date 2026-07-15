@@ -1,18 +1,28 @@
 {
   "expo": {
     "name": "Firebase Notepad",
-    "slug": "firebase-notepad",
+    "slug": "fb-notepad",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": false,
-    "platforms": ["android", "ios", "web"],
+    "platforms": [
+      "android",
+      "ios",
+      "web"
+    ],
     "android": {
       "package": "com.freenote.notepad"
     },
     "plugins": [
       "expo-status-bar",
       "expo-sharing"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "c3ae13ee-db20-49d6-a62c-03697dba4d24"
+      }
+    },
+    "owner": "chinmaykoshes-organization"
   }
 }
