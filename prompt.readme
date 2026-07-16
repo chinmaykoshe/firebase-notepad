@@ -1,0 +1,35 @@
+# Prompt for App Creation
+
+Use this prompt to generate or build the app for the `firebase-notepad` repository.
+
+## Goal
+Create a working Android app from the existing Expo/React Native project in `app/`, using local Android build tooling without Expo cloud services.
+
+## Instructions
+- Keep Expo compatibility and use local native build support.
+- Use `npx expo prebuild -p android` if Android native files are not already generated.
+- Ensure local Android SDK and JDK 11 are used.
+- Generate a signed release APK and place it at `app/app-release.apk`.
+- If signing is required, create a keystore and configure `app/android/keystore.properties`.
+- Avoid using Expo cloud build services.
+
+## Environment
+- Repository root: `/workspaces/firebase-notepad`
+- Android project path: `app/android`
+- App folder: `app/`
+
+## Commands
+```bash
+cd /workspaces/firebase-notepad/app
+export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
+npm install --legacy-peer-deps
+npx expo prebuild -p android
+cd android
+./gradlew clean assembleRelease --no-daemon
+cp app/build/outputs/apk/release/app-release.apk ../app-release.apk
+```
+
+## Notes
+- If `app/android/local.properties` is missing, create it with the Android SDK path.
+- If `keystore.properties` is missing, create it and configure `app/android/app/build.gradle` to use it.
+- For a one-command build, use the project script defined in `app/package.json` if available.
