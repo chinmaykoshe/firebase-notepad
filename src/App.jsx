@@ -399,6 +399,15 @@ function App() {
     setExportOpen(false);
   }
 
+  function copyNoteToClipboard() {
+    const textToCopy = `${noteName ? noteName.trim() + "\n\n" : ""}${getEditorText()}`.trim();
+    navigator.clipboard.writeText(textToCopy).then(() => {
+      showAlert("Note copied to clipboard!", "Success", "success");
+    }).catch((err) => {
+      showAlert(`Copy failed: ${err.message}`, "Error", "danger");
+    });
+  }
+
   function exportTXT() {
     const blob = new Blob([getEditorText()], { type: "text/plain" });
     const link = document.createElement("a");
@@ -850,6 +859,7 @@ function App() {
         onPaste={handlePaste}
         onKeyDown={handleEditorKeyDown}
         onSave={saveNote}
+        onCopyNote={copyNoteToClipboard}
         onExportTXT={exportTXT}
         onExportPDF={exportPDF}
         onDeleteOpenNote={deleteOpenNote}

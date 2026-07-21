@@ -21,6 +21,7 @@ function Editor({
     onPaste,
     onKeyDown,
     onSave,
+    onCopyNote,
     onExportTXT,
     onExportPDF,
     onDeleteOpenNote,
@@ -100,6 +101,11 @@ function Editor({
           </button>
           <button className="icon-btn toolbar-btn" id="editToggle" title="Toggle edit mode" onClick={onToggleEdit}>
             {isEditing ? "Read" : "Edit"}
+          </button>
+          <button className="icon-btn toolbar-btn" id="copyBtn" title="Copy note to clipboard" onClick={onCopyNote}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+            </svg>
           </button>
           <div className="desktop-actions">
             <button className="btn subtle-btn" onClick={onExportTXT}>TXT</button>
