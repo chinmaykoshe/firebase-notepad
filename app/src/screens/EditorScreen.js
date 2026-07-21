@@ -19,6 +19,7 @@ import Toast from '../components/Toast';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system';
+import * as Clipboard from 'expo-clipboard';
 import { doc, setDoc, deleteDoc, Timestamp, serverTimestamp, notesCollection, getDoc, updateDoc } from '../firebase';
 
 function stripHtml(html = '') {
@@ -169,6 +170,20 @@ export default function EditorScreen({ route, navigation }) {
     } catch (e) { showAlert(`PDF Export failed: ${e.message}`); }
   };
 
+  const copyAllText = async () => {
+    try {
+      const textToCopy = `${id ? id.trim() + '\n\n' : ''}${stripHtml(content)}`.trim();
+      if (Platform.OS === 'web') {
+        await navigator.clipboard.writeText(textToCopy);
+      } else {
+        await Clipboard.setStringAsync(textToCopy);
+      }
+      showToast('Copied note text');
+    } catch (e) {
+      showAlert(`Copy failed: ${e.message}`);
+    }
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: colors.bg }]}>
       <View style={[styles.header, { borderBottomColor: colors.inputBorder }]}>
@@ -193,6 +208,9 @@ export default function EditorScreen({ route, navigation }) {
               <Ionicons name="create-outline" size={24} color={colors.text} />
             </TouchableOpacity>
           )}
+          <TouchableOpacity onPress={copyAllText} style={{ marginLeft: Spacing.sm }}>
+            <Ionicons name="copy-outline" size={24} color={colors.text} />
+          </TouchableOpacity>
           <TouchableOpacity onPress={() => setShowMeta(!showMeta)} style={{ marginLeft: Spacing.sm }}>
             <Ionicons name="ellipsis-vertical" size={22} color={colors.text} />
           </TouchableOpacity>
