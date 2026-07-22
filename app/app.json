@@ -5,18 +5,28 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
+    "icon": "./icon.png",
     "platforms": [
       "android",
       "ios",
       "web"
     ],
     "android": {
-      "package": "com.freenote.notepad"
+      "package": "com.freenote.notepad",
+      "adaptiveIcon": {
+        "foregroundImage": "./adaptive-icon.png",
+        "backgroundColor": "#12131C"
+      },
+      "versionCode": 1,
+      "permissions": [
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE"
+      ]
     },
     "plugins": [
       "expo-status-bar",
-      "expo-sharing"
+      "expo-sharing",
+      "expo-font"
     ],
     "extra": {
       "eas": {
@@ -24,11 +34,15 @@
       }
     },
     "owner": "chinmaykoshes-organization",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/c3ae13ee-db20-49d6-a62c-03697dba4d24"
+    },
     "ios": {
       "bundleIdentifier": "com.freenote.notepad",
-      "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
-      }
+      "supportsTablet": false
     }
   }
 }

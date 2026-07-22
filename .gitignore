@@ -3,6 +3,7 @@ dist/
 .env
 .env.local
 .env.*.local
+.expo/
 
 # Android / Capacitor
 android/app/build/

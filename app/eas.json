@@ -1,21 +1,55 @@
 {
   "cli": {
     "version": ">= 21.0.1",
-    "appVersionSource": "remote"
+    "appVersionSource": "remote",
+    "requireCommit": false
   },
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyDyswlJTIm4NuhnAv8dNG8ij6zq0L8FmcU",
+        "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "txtfileviewer.firebaseapp.com",
+        "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "txtfileviewer",
+        "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET": "txtfileviewer.firebasestorage.app",
+        "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "185707122313",
+        "EXPO_PUBLIC_FIREBASE_APP_ID": "1:185707122313:web:45b14964453e8139cb8058",
+        "EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID": "G-ELZ4NBL705"
+      }
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "channel": "preview",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyDyswlJTIm4NuhnAv8dNG8ij6zq0L8FmcU",
+        "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "txtfileviewer.firebaseapp.com",
+        "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "txtfileviewer",
+        "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET": "txtfileviewer.firebasestorage.app",
+        "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "185707122313",
+        "EXPO_PUBLIC_FIREBASE_APP_ID": "1:185707122313:web:45b14964453e8139cb8058",
+        "EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID": "G-ELZ4NBL705"
+      }
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "channel": "production",
+      "env": {
+        "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyDyswlJTIm4NuhnAv8dNG8ij6zq0L8FmcU",
+        "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "txtfileviewer.firebaseapp.com",
+        "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "txtfileviewer",
+        "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET": "txtfileviewer.firebasestorage.app",
+        "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "185707122313",
+        "EXPO_PUBLIC_FIREBASE_APP_ID": "1:185707122313:web:45b14964453e8139cb8058",
+        "EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID": "G-ELZ4NBL705"
+      }
     }
   },
   "submit": {
     "production": {}
   }
 }
+
