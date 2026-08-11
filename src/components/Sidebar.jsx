@@ -1,99 +1,143 @@
-function formatExpiry(expiry) {
-  if (!expiry) return "No expiration";
-  const date = expiry.toDate ? expiry.toDate() : new Date(expiry);
-  const diff = date - new Date();
-  if (diff <= 0) return "Expired";
-  const hours = Math.floor(diff / 3600000);
-  const minutes = Math.floor((diff % 3600000) / 60000);
-  return `${hours}h ${minutes}m left`;
-}
+import { useRef, useState } from "react";
 
-function Sidebar({
-  notes,
-  searchText,
-  theme,
-  openMenuId,
-  onNewNote,
-  onSearchTextChange,
-  onOpenNote,
-  onDeleteNote,
-  onToggleTheme,
-  onToggleNoteMenu,
-  onOpenPrivacy,
-  onOpenTerms,
-}) {
+function Sidebar({ notes = [], currentNoteId, theme, username, onSetUsername, onNewNote, onHome, onOpenNote, onToggleTheme, onOpenPrivacy, onOpenTerms }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [notesListOpen, setNotesListOpen] = useState(false);
+  const inputRef = useRef(null);
+
+  const startEdit = () => {
+    setDraft(username);
+    setEditing(true);
+    setTimeout(() => inputRef.current?.select(), 30);
+  };
+
+  const commitEdit = () => {
+    const val = draft.trim();
+    if (val) onSetUsername(val);
+    setEditing(false);
+  };
+
   return (
-    <aside id="sidebar" aria-label="Saved notes sidebar">
-      <div id="sidebartop">
-        <button id="newFileBtn" className="btn" title="Create new note" onClick={onNewNote}>
-          + New File
-        </button>
-        <input
-          type="text"
-          id="searchNotesInput"
-          placeholder="Search notes..."
-          autoComplete="off"
-          value={searchText}
-          onChange={(event) => onSearchTextChange(event.target.value)}
-        />
-      </div>
+    <aside id="sidebar" aria-label="Navigation sidebar">
 
-      <div id="notesList">
-        <h3>Saved Notes</h3>
-        <ul id="notesUl">
-          {!notes.length && (
-            <li className="note-item empty-note">No notes found.</li>
+      {/* ── Profile ── */}
+      <div className="sidebar-profile">
+        <div className="sidebar-avatar" aria-hidden="true">📝</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {editing ? (
+            <input
+              ref={inputRef}
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onBlur={commitEdit}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") commitEdit();
+                if (e.key === "Escape") setEditing(false);
+              }}
+              style={{
+                width: "100%", padding: "3px 6px",
+                border: "1px solid var(--border)",
+                borderRadius: "var(--r-xs)",
+                background: "var(--bg)",
+                color: "var(--text)",
+                fontSize: "13px", fontWeight: 700,
+                fontFamily: "var(--font)", outline: "none",
+              }}
+              autoFocus
+            />
+          ) : (
+            <div
+              className="sidebar-user-name"
+              title="Click to edit your display name"
+              onClick={startEdit}
+              style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 5 }}
+            >
+              {username}
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.4, flexShrink: 0 }}>
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+              </svg>
+            </div>
           )}
-          {notes.map((note) => (
-            <li className="note-item" tabIndex="0" key={note.id}>
-              <div className="note-item-content" onClick={() => onOpenNote(note)}>
-                <span className="note-title">{note.id}</span>
-                <div className="note-author-display">
-                  <span className={`status-dot ${note.password ? "protected" : "open"}`} />
-                  {note.password ? "Protected" : "Open"} · By {note.author || "Unknown"}
-                </div>
-              </div>
-              <button
-                className="icon-btn kebab"
-                title="More actions"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onToggleNoteMenu(openMenuId === note.id ? "" : note.id);
-                }}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 8a2 2 0 110-4 2 2 0 010 4zm0 6a2 2 0 110-4 2 2 0 010 4zm0 6a2 2 0 110-4 2 2 0 010 4z" />
-                </svg>
-              </button>
-              <div className={`note-menu menu ${openMenuId === note.id ? "open" : ""}`}>
-                <div className="menu-timer">{formatExpiry(note.expiry)}</div>
-                <button className="menu-item" onClick={() => onDeleteNote(note)}>
-                  Delete
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
+          <div className="sidebar-user-email">Firebase Notepad</div>
+        </div>
       </div>
 
-      <div className="theme-row">
-        <label id="themeToggleLabel">Light Mode</label>
-        <label className="switch">
-          <input
-            type="checkbox"
-            id="themeToggle"
-            checked={theme === "light"}
-            onChange={(event) => onToggleTheme(event.target.checked ? "light" : "dark")}
-          />
-          <span className="slider" />
-        </label>
+      {/* ── MAIN ── */}
+      <div className="sidebar-section">
+        <div className="sidebar-section-label">Main</div>
+
+        <button className="nav-item active" onClick={() => setNotesListOpen(!notesListOpen)}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14,2 14,8 20,8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+          </svg>
+          All notes
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: "auto", transform: notesListOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </button>
+        
+        {notesListOpen && (
+          <div className="sidebar-notes-list" style={{ marginLeft: "14px", borderLeft: "1px solid var(--border)", paddingLeft: "8px", marginTop: "4px", marginBottom: "8px", display: "flex", flexDirection: "column", gap: "2px" }}>
+            {notes.map(note => (
+              <button
+                key={note.id}
+                className={`nav-item ${note.id === currentNoteId ? 'active' : ''}`}
+                style={{ padding: "6px 8px", fontSize: "12.5px" }}
+                onClick={() => onOpenNote(note)}
+              >
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {note.id || "Untitled"}-{note.author || "Unknown"}
+                </span>
+              </button>
+            ))}
+            {notes.length === 0 && (
+              <div style={{ padding: "6px 8px", fontSize: "12px", color: "var(--text-xs)" }}>No notes found</div>
+            )}
+          </div>
+        )}
+
+        <button className="nav-item" onClick={onNewNote} style={{ marginTop: "4px" }}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 20h9"/>
+            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+          </svg>
+          New note
+        </button>
       </div>
-      
-      <div style={{ marginTop: "16px", display: "flex", gap: "12px", justifyContent: "center", opacity: 0.6, fontSize: "0.8rem" }}>
-        <button className="subtle-btn" style={{ border: "none", padding: 0, minHeight: 0 }} onClick={onOpenPrivacy}>Privacy</button>
-        <span>&middot;</span>
-        <button className="subtle-btn" style={{ border: "none", padding: 0, minHeight: 0 }} onClick={onOpenTerms}>Terms</button>
+
+      {/* ── SETTINGS ── */}
+      <div className="sidebar-bottom-section">
+        <div className="sidebar-section-label">Settings</div>
+
+        <div className="theme-row">
+          <span style={{ display: "flex", alignItems: "center", gap: 9 }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.55 }}>
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+            </svg>
+            Dark mode
+          </span>
+          <label className="switch">
+            <input
+              type="checkbox"
+              id="themeToggle"
+              checked={theme === "dark-mode"}
+              onChange={(e) => onToggleTheme(e.target.checked ? "dark-mode" : "")}
+            />
+            <span className="slider" />
+          </label>
+        </div>
+
+        <div className="sidebar-legal">
+          <button onClick={onOpenPrivacy}>Privacy</button>
+          <button onClick={onOpenTerms}>Terms</button>
+        </div>
       </div>
+
     </aside>
   );
 }

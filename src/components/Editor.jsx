@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import SearchPanel from "./SearchPanel.jsx";
 import ImageResizer from "./ImageResizer.jsx";
+import WorksheetGrid from "./WorksheetGrid.jsx";
 
 function Editor({
     noteName,
@@ -36,10 +37,15 @@ function Editor({
     onToggleExport,
     onToggleFullscreen,
     onOpenMenu,
+    onBack,
     onFormat,
     onToggleFormatToolbar,
     editorRef,
     containerRef,
+    worksheets,
+    setWorksheets,
+    activeTab,
+    setActiveTab,
   }) {
   const [selectedImg, setSelectedImg] = useState(null);
   const [zoomLevel, setZoomLevel] = useState(1);
@@ -79,50 +85,76 @@ function Editor({
   };
 
   return (
-    <main id="main">
+    <main id="main" className="editor-shell">
       <header className="topbar">
         <div className="left-group">
           <button id="hamburgerBtn" className="icon-btn hamburger" aria-label="Menu" title="Menu" onClick={onOpenMenu}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path d="M3 6h18v2H3V6zm0 5h18v2H3v-2zm0 5h18v2H3v-2z" />
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
             </svg>
           </button>
-          <h1 className="title">Notes</h1>
-          <div className="title-free">
-            <h6>
-              <a href="/index.html">Firebase Notepad</a>
-            </h6>
-          </div>
+          <nav className="breadcrumb" aria-label="Breadcrumb">
+            <button className="breadcrumb-home icon-btn" style={{ padding: "4px 6px", minHeight: 0 }} onClick={onBack} title="Back to notes">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="15,18 9,12 15,6"/>
+              </svg>
+              Home
+            </button>
+            <span className="breadcrumb-sep">/</span>
+            <span className="breadcrumb-current">{noteName || "New note"}</span>
+          </nav>
         </div>
 
         <div className="actions">
-          <button className="icon-btn toolbar-btn" id="findToggle" title="Find in note" onClick={onToggleSearch}>
-            Find
+          {/* Find */}
+          <button className="icon-btn toolbar-btn" id="findToggle" title="Find in note (Ctrl+F)" onClick={onToggleSearch}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <span className="desktop-label">Find</span>
           </button>
-          <button className="icon-btn toolbar-btn" id="editToggle" title="Toggle edit mode" onClick={onToggleEdit}>
-            {isEditing ? "Read" : "Edit"}
+
+          {/* Edit / Read toggle */}
+          <button className="icon-btn toolbar-btn" id="editToggle" title="Toggle edit mode" onClick={onToggleEdit} style={{ fontWeight: 600 }}>
+            {isEditing ? (
+              <>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                </svg>
+                <span className="desktop-label">Read</span>
+              </>
+            ) : (
+              <>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+                <span className="desktop-label">Edit</span>
+              </>
+            )}
           </button>
-          <button className="icon-btn toolbar-btn" id="copyBtn" title="Copy note to clipboard" onClick={onCopyNote}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+
+          {/* Copy */}
+          <button className="icon-btn" id="copyBtn" title="Copy note to clipboard" onClick={onCopyNote}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
             </svg>
           </button>
+
+          {/* Desktop secondary actions */}
           <div className="desktop-actions">
-            <button className="btn subtle-btn" onClick={onExportTXT}>TXT</button>
-            <button className="btn subtle-btn" onClick={onExportPDF}>PDF</button>
-            <button className="btn subtle-btn" id="extendBtn" onClick={onExtendNote}>Extend</button>
-            <button className="btn subtle-btn" onClick={onInsertTable}>Table</button>
-            <button className="btn danger-action" onClick={onDeleteOpenNote}>Delete</button>
+            <button className="icon-btn toolbar-btn" onClick={onExportTXT} title="Export as TXT">TXT</button>
+            <button className="icon-btn toolbar-btn" onClick={onExportPDF} title="Export as PDF">PDF</button>
+            <button className="icon-btn toolbar-btn" id="extendBtn" onClick={onExtendNote} title="Extend note lifetime by 24h">Extend</button>
+            <button className="icon-btn toolbar-btn" onClick={onInsertTable} title="Insert table">Table</button>
+            <button className="icon-btn danger-action" onClick={onDeleteOpenNote} title="Delete this note">Delete</button>
           </div>
-          <button
-            id="exportToggle"
-            className="icon-btn"
-            aria-haspopup="menu"
-            aria-expanded={exportOpen}
-            title="More actions"
-            onClick={onToggleExport}
-          >
-            More
+
+          {/* Mobile overflow menu */}
+          <button id="exportToggle" className="icon-btn toolbar-btn" aria-haspopup="menu" aria-expanded={exportOpen} title="More actions" onClick={onToggleExport}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="5" r="1" fill="currentColor"/><circle cx="12" cy="12" r="1" fill="currentColor"/><circle cx="12" cy="19" r="1" fill="currentColor"/>
+            </svg>
           </button>
         </div>
 
@@ -142,7 +174,7 @@ function Editor({
           <button className="export-menu-item" onClick={onExportPDF}>Export PDF</button>
           <button className="export-menu-item" onClick={onExtendNote}>Extend 24h</button>
           <button className="export-menu-item" onClick={onInsertTable}>Insert Table</button>
-          <button className="export-menu-item" onClick={onDeleteOpenNote}>Delete Note</button>
+          <button className="export-menu-item" style={{ color: "var(--danger)" }} onClick={onDeleteOpenNote}>Delete Note</button>
         </div>
       </header>
 
@@ -156,7 +188,8 @@ function Editor({
                 <input
                   id="noteName"
                   type="text"
-                  placeholder="Note name"
+                  placeholder="Auto-generated note name"
+                  maxLength={30}
                   value={noteName}
                   onChange={(event) => onNoteNameChange(event.target.value)}
                 />
@@ -194,35 +227,40 @@ function Editor({
                   💾 Save
                 </button>
                 <span className="fmt-sep" />
-                <select
-                  className="format-select font-select"
-                  defaultValue=""
-                  title="Font family"
-                  onChange={(event) => { if (event.target.value) safeFormat("fontName", event.target.value); event.target.value = ""; }}
-                >
-                  <option value="">Font</option>
-                  <option value="Arial">Arial</option>
-                  <option value="Georgia">Georgia</option>
-                  <option value="Courier New">Courier</option>
-                  <option value="Times New Roman">Times</option>
-                  <option value="Verdana">Verdana</option>
-                </select>
-                <select
-                  className="format-select size-select"
-                  defaultValue=""
-                  title="Font size"
-                  onChange={(event) => { if (event.target.value) safeFormat("fontSize", event.target.value); event.target.value = ""; }}
-                >
-                  <option value="">Size</option>
-                  <option value="2">Small</option>
-                  <option value="3">Normal</option>
-                  <option value="4">Medium</option>
-                  <option value="5">Large</option>
-                  <option value="6">Huge</option>
-                </select>
+                {activeTab === "text" && (
+                  <>
+                    <select
+                      className="format-select font-select"
+                      defaultValue=""
+                      title="Font family"
+                      onChange={(event) => { if (event.target.value) safeFormat("fontName", event.target.value); event.target.value = ""; }}
+                    >
+                      <option value="">Font</option>
+                      <option value="Arial">Arial</option>
+                      <option value="Georgia">Georgia</option>
+                      <option value="Courier New">Courier</option>
+                      <option value="Times New Roman">Times</option>
+                      <option value="Verdana">Verdana</option>
+                    </select>
+                    <select
+                      className="format-select size-select"
+                      defaultValue=""
+                      title="Font size"
+                      onChange={(event) => { if (event.target.value) safeFormat("fontSize", event.target.value); event.target.value = ""; }}
+                    >
+                      <option value="">Size</option>
+                      <option value="2">Small</option>
+                      <option value="3">Normal</option>
+                      <option value="4">Medium</option>
+                      <option value="5">Large</option>
+                      <option value="6">Huge</option>
+                    </select>
+                  </>
+                )}
               </div>
 
               {/* Row 2: Style + Lists + Indent + Align + Clear */}
+              {activeTab === "text" && (
               <div className="fmt-row">
                 <div className="fmt-group">
                   <button type="button" className="format-btn bold-btn" title="Bold" onClick={() => safeFormat("bold")}><b>B</b></button>
@@ -262,10 +300,12 @@ function Editor({
                   <span className="fmt-btn-label">Clear</span>
                 </button>
               </div>
+              )}
             </div>
           </>
         )}
 
+          {activeTab === "text" && (
           <div
             className="textarea-container"
             ref={containerRef}
@@ -313,20 +353,88 @@ function Editor({
               onClick={handleEditorClick}
             />
             <ImageResizer imgElement={selectedImg} containerRef={containerRef} isEditing={isEditing} onDeselect={() => setSelectedImg(null)} />
-          
-          <div className="zoom-controls">
-            <button className="icon-btn" title="Zoom out" onClick={() => setZoomLevel(z => Math.max(0.5, +(z - 0.1).toFixed(1)))}>-</button>
-            <span className="zoom-level">{Math.round(zoomLevel * 100)}%</span>
-            <button className="icon-btn" title="Zoom in" onClick={() => setZoomLevel(z => Math.min(3.0, +(z + 0.1).toFixed(1)))}>+</button>
-          </div>
 
-          <button className="icon-btn read-fs-btn" title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"} onClick={onToggleFullscreen}>
-            <img src={isFullscreen ? "/collapse.svg" : "/expand.svg"} alt="" />
-          </button>
-        </div>
-      </section>
-    </main>
-  );
+            <div className="zoom-controls">
+              <button className="icon-btn" title="Zoom out" onClick={() => setZoomLevel(z => Math.max(0.5, +(z - 0.1).toFixed(1)))}>-</button>
+              <span className="zoom-level">{Math.round(zoomLevel * 100)}%</span>
+              <button className="icon-btn" title="Zoom in" onClick={() => setZoomLevel(z => Math.min(3.0, +(z + 0.1).toFixed(1)))}>+</button>
+            </div>
+
+            <button className="icon-btn read-fs-btn" title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"} onClick={onToggleFullscreen}>
+              <img src={isFullscreen ? "/collapse.svg" : "/expand.svg"} alt="" />
+            </button>
+          </div>
+          )}
+          
+          {/* Render the WorksheetGrid if a sheet tab is active */}
+          {activeTab !== "text" && (
+            <WorksheetGrid
+              data={worksheets.find(s => s.id === activeTab)?.data}
+              onChange={(newData) => {
+                const updated = worksheets.map(s => s.id === activeTab ? { ...s, data: newData } : s);
+                setWorksheets(updated);
+              }}
+            />
+          )}
+
+          {/* Bottom Tab Bar for Worksheets */}
+          {(worksheets.length > 0 || activeTab !== "text") && (
+            <div className="editor-tabs">
+              <button 
+                className={`tab-item ${activeTab === "text" ? "active" : ""}`}
+                onClick={() => setActiveTab("text")}
+              >
+                📝 Note
+              </button>
+              {worksheets.map(sheet => (
+                <div
+                  key={sheet.id}
+                  className={`tab-item ${activeTab === sheet.id ? "active" : ""}`}
+                  onClick={() => setActiveTab(sheet.id)}
+                  style={{ display: "flex", alignItems: "center", gap: "8px" }}
+                >
+                  <span>📊 {sheet.name}</span>
+                  {isEditing && (
+                    <button
+                      className="tab-delete-btn"
+                      title="Delete sheet"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const updated = worksheets.filter(s => s.id !== sheet.id);
+                        setWorksheets(updated);
+                        if (activeTab === sheet.id) setActiveTab("text");
+                      }}
+                      style={{
+                        background: "transparent", border: "none", color: "inherit",
+                        cursor: "pointer", fontSize: "14px", opacity: 0.6, padding: "0 4px"
+                      }}
+                      onMouseEnter={(e) => e.target.style.opacity = 1}
+                      onMouseLeave={(e) => e.target.style.opacity = 0.6}
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              ))}
+              {isEditing && (
+                <button
+                  className="tab-item add-tab"
+                  title="Add empty worksheet"
+                  onClick={() => {
+                    const newSheet = { id: Date.now().toString(), name: `Sheet ${worksheets.length + 1}`, data: [] };
+                    setWorksheets([...worksheets, newSheet]);
+                    setActiveTab(newSheet.id);
+                  }}
+                >
+                  +
+                </button>
+              )}
+            </div>
+          )}
+
+        </section>
+      </main>
+    );
 }
 
 export default Editor;

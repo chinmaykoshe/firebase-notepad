@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { jsPDF } from "jspdf";
 import Sidebar from "./components/Sidebar.jsx";
 import Editor from "./components/Editor.jsx";
+import NoteGrid from "./components/NoteGrid.jsx";
 import PasswordDialog from "./components/PasswordDialog.jsx";
 import CustomDialog from "./components/CustomDialog.jsx";
 import CookieConsent from "./components/CookieConsent.jsx";
@@ -109,22 +110,75 @@ function cleanPastedHtml(html) {
   return doc.body.innerHTML;
 }
 
+// ── Username helpers ────────────────────────────────────────────────────
+const USERNAME_KEY = "notepad-username";
+
+function getOrCreateUsername() {
+  try {
+    const saved = localStorage.getItem(USERNAME_KEY);
+    const systemName = import.meta.env.VITE_SYSTEM_USERNAME;
+    
+    // If the saved name is just a generic random 'User_XXXX' and we have a system name, overwrite it
+    if (systemName && (!saved || /^User_\d{4}$/.test(saved))) {
+      localStorage.setItem(USERNAME_KEY, systemName);
+      return systemName;
+    }
+    
+    if (saved) return saved;
+    
+    // Fallback if no system name is available
+    const generated = `User_${Math.floor(1000 + Math.random() * 9000)}`;
+    localStorage.setItem(USERNAME_KEY, generated);
+    return generated;
+  } catch {
+    return "User";
+  }
+}
+
+function saveUsername(name) {
+  try { localStorage.setItem(USERNAME_KEY, name); } catch {}
+}
+
+/** Extract first 5 words from HTML content for use as note name */
+function guessNoteName(html) {
+  if (!html) return "";
+  const text = html
+    .replace(/<br\s*\/?>/gi, " ")
+    .replace(/<\/p>/gi, " ")
+    .replace(/<[^>]*>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/\s+/g, " ")
+    .trim();
+  const words = text.split(" ").slice(0, 5).join(" ");
+  return words.slice(0, 24).trim() || "";
+}
+
 function App() {
   const editorRef = useRef(null);
   const containerRef = useRef(null);
   const dialogResolver = useRef(null);
   const passwordResolver = useRef(null);
+  const pendingContentRef = useRef(""); // content waiting to be applied once editor mounts
   const [notes, setNotes] = useState([]);
   const [noteName, setNoteName] = useState("");
+  const [noteNameManuallySet, setNoteNameManuallySet] = useState(false);
   const [author, setAuthor] = useState("");
   const [password, setPassword] = useState("");
   const [currentNoteId, setCurrentNoteId] = useState("");
   const [currentNotePassword, setCurrentNotePassword] = useState("");
   const [isEditing, setIsEditing] = useState(true);
-  const [theme, setTheme] = useState(() => localStorage.getItem("notepad-theme") || "dark");
+  const [worksheets, setWorksheets] = useState([]); // [{id, name, data}]
+  const [activeTab, setActiveTab] = useState("text"); // "text" or sheet id
+  const [username, setUsernameState] = useState(getOrCreateUsername);
+  const [theme, setTheme] = useState(() => localStorage.getItem("notepad-theme") || "");
+  const [showEditor, setShowEditor] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchText, setSearchText] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [matches, setMatches] = useState([]);
   const [currentMatchIndex, setCurrentMatchIndex] = useState(-1);
@@ -137,7 +191,19 @@ function App() {
   const [passwordInput, setPasswordInput] = useState("");
   const [legalDialog, setLegalDialog] = useState({ open: false, type: "" });
   const [slashCmd, setSlashCmd] = useState({ open: false, query: "", anchor: null });
+  const [toast, setToast] = useState("");
   const slashMenuRef = useRef(null);
+
+  function showToast(msg) {
+    setToast(msg);
+    setTimeout(() => setToast(""), 3000);
+  }
+
+  /** Persist username change */
+  const handleSetUsername = (name) => {
+    saveUsername(name);
+    setUsernameState(name);
+  };
 
   const filteredNotes = useMemo(() => {
     const text = searchText.trim().toLowerCase();
@@ -150,8 +216,28 @@ function App() {
   const getEditorHtml = () => normalizeEditorHtml(editorRef.current?.innerHTML || "");
   const getEditorText = () => (editorRef.current?.innerText || "").replace(/\n{3,}/g, "\n\n").trimEnd();
   const setEditorHtml = (html) => {
-    if (editorRef.current) editorRef.current.innerHTML = normalizeEditorHtml(html);
+    const cleaned = normalizeEditorHtml(html);
+    if (editorRef.current) {
+      editorRef.current.innerHTML = cleaned;
+    } else {
+      // Editor not mounted yet — store for later
+      pendingContentRef.current = cleaned;
+    }
   };
+
+  // Apply pending content once the editor mounts (showEditor becomes true)
+  useEffect(() => {
+    if (!showEditor) return;
+    if (pendingContentRef.current === "") return;
+    // Wait one tick for the DOM to mount
+    const id = setTimeout(() => {
+      if (editorRef.current) {
+        editorRef.current.innerHTML = pendingContentRef.current;
+        pendingContentRef.current = "";
+      }
+    }, 0);
+    return () => clearTimeout(id);
+  }, [showEditor]);
 
   const showAlert = (message, title = "Alert", type = "info") =>
     new Promise((resolve) => {
@@ -185,6 +271,10 @@ function App() {
         id: item.id,
         author: data.author || "Unknown",
         content: data.content || "",
+        worksheets: (data.worksheets || []).map(ws => ({
+          ...ws,
+          data: typeof ws.data === "string" ? JSON.parse(ws.data) : ws.data
+        })),
         expiry: data.expiry || null,
         password: data.password || "",
       };
@@ -219,7 +309,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    document.body.classList.toggle("light-mode", theme === "light");
+    document.body.classList.toggle("dark-mode", theme === "dark-mode");
     document.body.classList.toggle("menu-open", menuOpen);
     localStorage.setItem("notepad-theme", theme);
   }, [theme, menuOpen]);
@@ -234,9 +324,13 @@ function App() {
     setCurrentNoteId("");
     setCurrentNotePassword("");
     setNoteName("");
-    setAuthor("");
+    setNoteNameManuallySet(false);
+    setAuthor(username);
     setPassword("");
-    setEditorHtml("");
+    setWorksheets([]);
+    setActiveTab("text");
+    pendingContentRef.current = "";
+    if (editorRef.current) editorRef.current.innerHTML = "";
     clearHighlights();
     setSearchTerm("");
     setIsEditing(true);
@@ -314,12 +408,18 @@ function App() {
     setNoteName(note.id);
     setAuthor(data.author || "Unknown");
     setPassword(data.password || "");
+    setWorksheets((data.worksheets || []).map(ws => ({
+      ...ws,
+      data: typeof ws.data === "string" ? JSON.parse(ws.data) : ws.data
+    })));
+    setActiveTab("text");
     setEditorHtml(data.content || "");
     setSearchOpen(false);
     setSearchTerm("");
     clearHighlights();
     setIsEditing(false);
     setMenuOpen(false);
+    setShowEditor(true);
   }
 
   function askPassword(note, action) {
@@ -344,25 +444,88 @@ function App() {
   }
 
   async function saveNote() {
-    const id = noteName.trim();
-    const writer = author.trim();
-    if (!id) return showAlert("Enter a note name", "Validation Error", "danger");
-    if (!writer) return showAlert("Enter author name", "Validation Error", "danger");
-
     const content = getEditorHtml();
+    const writer = author.trim() || username;
+
+    // Auto-derive note name from first words of content if not manually set
+    let id = noteName.trim();
+    if (!id) {
+      id = guessNoteName(content);
+      
+      // If content is empty but there's a worksheet, use the first cell
+      if (!id && worksheets.length > 0 && worksheets[0]?.data?.length > 0 && worksheets[0].data[0]?.length > 0) {
+        id = worksheets[0].data[0][0]?.toString().trim();
+        if (id) id = id.replace(/[^a-zA-Z0-9_\- ]/g, "").slice(0, 24).trim();
+      }
+      
+      if (!id) id = `Note ${new Date().toLocaleDateString("en-GB")}`;
+    }
+
+    // Auto-increment name if it already exists (to avoid overwriting)
+    if (id !== currentNoteId) {
+      let baseId = id;
+      let counter = 1;
+      while (notes.some((n) => n.id === id)) {
+        id = `${baseId} (${counter})`;
+        counter++;
+      }
+      if (id !== noteName.trim()) setNoteName(id);
+    }
+
     const expiry = new Date(Date.now() + 4 * 24 * 60 * 60 * 1000);
+    
+    // Firestore does not support nested arrays. Serialize the 2D grid data to JSON.
+    const serializedWorksheets = worksheets.map(ws => ({
+      ...ws,
+      data: JSON.stringify(ws.data)
+    }));
+
     await setDoc(doc(notesCollection, id), {
       content,
+      worksheets: serializedWorksheets,
       author: writer,
       password: password.trim(),
       expiry: Timestamp.fromDate(expiry),
       updatedAt: serverTimestamp(),
     });
+    
+    // If the note was renamed, delete the old document
+    if (currentNoteId && currentNoteId !== id) {
+      await deleteDoc(doc(notesCollection, currentNoteId));
+    }
+
     setCurrentNoteId(id);
     setCurrentNotePassword(password.trim());
     await loadList();
-    setIsEditing(false);
-    await showAlert(`Note saved as ${password.trim() ? "password-protected" : "open with no password"}, expires in 4 days.`, "Success", "success");
+    showToast(`Saved as "${id}"`);
+  }
+
+  async function handleBack() {
+    if (isEditing) {
+      const savedNote = notes.find((n) => n.id === currentNoteId);
+      const currentHtml = getEditorHtml();
+      const currentName = noteName.trim();
+      const currentAuthor = author.trim();
+      
+      let isDirty = false;
+      if (savedNote) {
+        if (savedNote.content !== currentHtml || savedNote.author !== currentAuthor) {
+          isDirty = true;
+        }
+      } else {
+        if (currentHtml || currentName || (currentAuthor && currentAuthor !== username)) {
+          isDirty = true;
+        }
+      }
+      
+      if (isDirty) {
+        const confirmed = await showConfirm("You have unsaved changes. Discard them and go back?", "Unsaved Changes", "danger");
+        if (!confirmed) return;
+      }
+    }
+    
+    setShowEditor(false);
+    clearEditor();
   }
 
   async function deleteNote(note) {
@@ -532,36 +695,119 @@ function App() {
   function handlePaste(event) {
     if (!isEditing) return;
 
+    const editor = editorRef.current;
     const clipboardTypes = event.clipboardData.types;
     const hasHtml = clipboardTypes.includes("text/html");
     const text = event.clipboardData.getData("text/plain");
     const html = hasHtml ? event.clipboardData.getData("text/html") : "";
 
-    // Ctrl+Shift+V or similar: only plain text available — always paste as plain text
-    if (!hasHtml || !html.trim()) {
+    // ── Check if caret is inside an existing table cell ──────────────────────
+    const sel = window.getSelection();
+    const anchorNode = sel?.anchorNode;
+    const currentCell =
+      anchorNode?.parentElement?.closest?.("td, th") ||
+      (anchorNode?.nodeType === 1 ? anchorNode.closest?.("td, th") : null);
+    const isInsideTable = currentCell && editor?.contains(currentCell);
+
+    const lowerHtml = html.toLowerCase();
+    const isExcel = lowerHtml.includes("excel") || 
+                    lowerHtml.includes("mso-") || 
+                    lowerHtml.includes("office:excel") || 
+                    lowerHtml.includes("data-sheets-value") || 
+                    lowerHtml.includes("data-mesh-id") || 
+                    lowerHtml.includes("progid");
+    const hasTable = lowerHtml.includes("<table");
+    
+    // Detect code copied from IDEs or code editors
+    const isIDE = clipboardTypes.includes("vscode-editor-data") ||
+                  lowerHtml.includes("intellij") ||
+                  lowerHtml.includes("eclipse") ||
+                  lowerHtml.includes("font-family: consolas") ||
+                  lowerHtml.includes("font-family: 'courier new'") ||
+                  lowerHtml.includes("font-family: monospace") ||
+                  lowerHtml.includes("white-space: pre");
+
+    // Force plain text if it's a non-Excel table, or if it's code from an IDE
+    const forcePlainText = (hasTable && !isExcel) || isIDE;
+
+    // ── Plain-text paste ─────────────────────────────────────────────────────
+    if (!hasHtml || !html.trim() || forcePlainText) {
       event.preventDefault();
       if (!text.trim()) return;
 
-      // Tab-delimited plain text -> auto table
-      const rows = text.trim().split("\n").map((line) => line.split("\t"));
-      if (rows.length > 1 && rows.some((row) => row.length > 1)) {
-        insertHtmlAtCursor(createHtmlTable(rows.length, Math.max(...rows.map((r) => r.length)), rows));
-      } else {
-        // Insert as plain text preserving line breaks
-        const escaped = text
-          .replace(/&/g, "&amp;")
-          .replace(/</g, "&lt;")
-          .replace(/>/g, "&gt;")
-          .replace(/\n/g, "<br>");
-        insertHtmlAtCursor(`<span>${escaped}</span>`);
+      // If caret is inside an existing table cell, fill cells with tab/newline data
+      if (isInsideTable) {
+        const rows = text.trim().split("\n").map((line) => line.split("\t"));
+        const table = currentCell.closest("table");
+        const allCells = [...(table?.querySelectorAll("th, td") || [])];
+        const startIndex = allCells.indexOf(currentCell);
+        // Count columns
+        const colCount = table?.rows[0]?.cells.length || 1;
+        let cellIdx = startIndex;
+        rows.forEach((rowData) => {
+          rowData.forEach((cellText) => {
+            if (allCells[cellIdx]) {
+              allCells[cellIdx].textContent = cellText;
+            }
+            cellIdx += 1;
+          });
+          // Align to start of next row
+          const filled = cellIdx - startIndex;
+          const rowsFilled = Math.floor(filled / colCount);
+          const colsInRow = filled % colCount;
+          if (colsInRow !== 0) {
+            cellIdx += colCount - colsInRow;
+          }
+        });
+        // Place caret after the last filled cell
+        const lastFilled = allCells[Math.min(cellIdx - 1, allCells.length - 1)];
+        if (lastFilled) placeCaretInside(lastFilled);
+        return;
       }
+
+      // Otherwise, always paste as plain text (no forced table conversion)
+      const escaped = text
+        .replace(/\r\n/g, "\n")
+        .replace(/\r/g, "\n")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\n/g, "<br>")
+        .replace(/\t/g, "&nbsp;&nbsp;&nbsp;&nbsp;"); // preserve tabs as spaces
+      insertHtmlAtCursor(`<span>${escaped}</span>`);
       return;
     }
 
-    // HTML paste — check for tables first
-    const lowerHtml = html.toLowerCase();
-    if (lowerHtml.includes("<table")) {
+    // ── HTML paste — check for tables ────────────────────────────────────────
+    if (hasTable) {
       event.preventDefault();
+      
+      // If it's an Excel paste, create a new worksheet instead of inserting HTML
+      if (isExcel) {
+        const parsed = new DOMParser().parseFromString(html, "text/html");
+        const table = parsed.querySelector("table");
+        const sheetData = [];
+        if (table) {
+          const rows = table.querySelectorAll("tr");
+          rows.forEach((tr) => {
+            const rowData = [];
+            tr.querySelectorAll("th, td").forEach((td) => {
+              rowData.push(td.textContent.replace(/\r/g, "").replace(/\n/g, " ").trim());
+            });
+            sheetData.push(rowData);
+          });
+        }
+        if (sheetData.length > 0) {
+          const newSheet = { id: Date.now().toString(), name: `Sheet ${worksheets.length + 1}`, data: sheetData };
+          setWorksheets(prev => {
+             const updated = [...prev, newSheet];
+             return updated;
+          });
+          setActiveTab(newSheet.id);
+          return;
+        }
+      }
+
       const cleaned = cleanPastedHtml(html);
       const parsed = new DOMParser().parseFromString(cleaned, "text/html");
       const body = parsed.body;
@@ -573,7 +819,6 @@ function App() {
         if (node.nodeType === 1) {
           const name = node.nodeName.toLowerCase();
           if (name === "table") {
-            // Wrap table with our class
             node.classList.add("freenote-table");
             chunks.push({ type: "table", html: node.outerHTML });
             return;
@@ -618,7 +863,7 @@ function App() {
       return;
     }
 
-    // Rich HTML paste (no tables) — clean and insert
+    // ── Rich HTML paste (no tables) — clean and insert ───────────────────────
     event.preventDefault();
     const cleaned = cleanPastedHtml(html);
     if (cleaned.trim()) {
@@ -821,23 +1066,102 @@ function App() {
   return (
     <>
       <div id="overlay" onClick={() => setMenuOpen(false)} />
+      {toast && <div className="toast-notification">{toast}</div>}
       <Sidebar
-        notes={filteredNotes}
-        searchText={searchText}
+        notes={notes}
+        currentNoteId={currentNoteId}
         theme={theme}
-        openMenuId={openMenuId}
-        onNewNote={() => {
-          clearEditor();
-          setMenuOpen(false);
-        }}
-        onSearchTextChange={setSearchText}
-        onOpenNote={openNote}
-        onDeleteNote={deleteNote}
+        username={username}
+        onSetUsername={handleSetUsername}
+        onNewNote={() => { setMenuOpen(false); clearEditor(); setShowEditor(true); }}
+        onHome={() => { setMenuOpen(false); handleBack(); }}
+        onOpenNote={(note) => { setMenuOpen(false); openNote(note); }}
         onToggleTheme={setTheme}
-        onToggleNoteMenu={setOpenMenuId}
-        onOpenPrivacy={() => setLegalDialog({ open: true, type: "privacy" })}
-        onOpenTerms={() => setLegalDialog({ open: true, type: "terms" })}
+        onOpenPrivacy={() => { setMenuOpen(false); setLegalDialog({ open: true, type: "privacy" }); }}
+        onOpenTerms={() => { setMenuOpen(false); setLegalDialog({ open: true, type: "terms" }); }}
       />
+
+      {/* ── HOME: Note grid ── */}
+      {!showEditor && (
+        <div id="main" style={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
+          <header className={`topbar topbar-3col ${mobileSearchOpen ? "mobile-search-active" : ""}`}>
+            {/* Left — breadcrumb */}
+            <div className="left-group" style={{ display: mobileSearchOpen ? "none" : "flex" }}>
+              <button id="hamburgerBtn" className="icon-btn hamburger" aria-label="Menu" onClick={() => setMenuOpen(true)}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+                </svg>
+              </button>
+              <nav className="breadcrumb">
+                <span className="breadcrumb-home">Home</span>
+                <span className="breadcrumb-sep">/</span>
+                <span className="breadcrumb-current">All notes</span>
+              </nav>
+            </div>
+
+            {/* Mobile search toggle button */}
+            <button
+              className="icon-btn mobile-search-toggle"
+              onClick={() => setMobileSearchOpen(true)}
+              style={{ display: mobileSearchOpen ? "none" : "" }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+            </button>
+
+            {/* Center — search */}
+            <div className={`topbar-search topbar-search-center ${mobileSearchOpen ? "mobile-open" : ""}`}>
+              <svg className="topbar-search-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+              <input
+                type="text"
+                placeholder="Search a note…"
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                autoFocus={mobileSearchOpen}
+              />
+              {mobileSearchOpen && (
+                <button
+                  className="icon-btn mobile-search-close"
+                  onClick={() => { setMobileSearchOpen(false); setSearchText(""); }}
+                  style={{ position: "absolute", right: "6px", top: "50%", transform: "translateY(-50%)" }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+              )}
+            </div>
+
+            {/* Right — new note shortcut */}
+            <div className="right-group" style={{ display: mobileSearchOpen ? "none" : "flex", justifyContent: "flex-end", alignItems: "center" }}>
+              <button
+                className="note-grid-new"
+                onClick={() => { clearEditor(); setShowEditor(true); }}
+                style={{ fontSize: "12px", padding: "7px 14px" }}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                New
+              </button>
+            </div>
+          </header>
+          <NoteGrid
+            notes={filteredNotes}
+            searchText={searchText}
+            openMenuId={openMenuId}
+            onNewNote={() => { clearEditor(); setShowEditor(true); }}
+            onSearchTextChange={setSearchText}
+            onOpenNote={openNote}
+            onDeleteNote={deleteNote}
+            onToggleNoteMenu={setOpenMenuId}
+          />
+        </div>
+      )}
+
+      {/* ── EDITOR view ── */}
+      {showEditor && (
       <Editor
         editorRef={editorRef}
         containerRef={containerRef}
@@ -845,6 +1169,10 @@ function App() {
         author={author}
         password={password}
         isEditing={isEditing}
+        worksheets={worksheets}
+        setWorksheets={setWorksheets}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
         isFullscreen={isFullscreen}
         formatToolbarOpen={formatToolbarOpen}
         searchOpen={searchOpen}
@@ -868,28 +1196,20 @@ function App() {
         onToggleEdit={() => setIsEditing((value) => !value)}
         onToggleSearch={() => {
           setSearchOpen((value) => !value);
-          if (searchOpen) {
-            setSearchTerm("");
-            clearHighlights();
-          }
+          if (searchOpen) { setSearchTerm(""); clearHighlights(); }
         }}
-        onSearchChange={(value) => {
-          setSearchTerm(value);
-          applyHighlights(value);
-        }}
-        onCloseSearch={() => {
-          setSearchOpen(false);
-          setSearchTerm("");
-          clearHighlights();
-        }}
+        onSearchChange={(value) => { setSearchTerm(value); applyHighlights(value); }}
+        onCloseSearch={() => { setSearchOpen(false); setSearchTerm(""); clearHighlights(); }}
         onPrevMatch={() => moveMatch("prev")}
         onNextMatch={() => moveMatch("next")}
         onToggleExport={() => setExportOpen((value) => !value)}
         onToggleFullscreen={toggleFullscreen}
         onOpenMenu={() => setMenuOpen(true)}
+        onBack={handleBack}
         onFormat={handleFormat}
         onToggleFormatToolbar={() => setFormatToolbarOpen((value) => !value)}
       />
+      )}
       <PasswordDialog
         passwordDialog={passwordDialog}
         value={passwordInput}
