@@ -562,15 +562,6 @@ function App() {
     setExportOpen(false);
   }
 
-  function copyNoteToClipboard() {
-    const textToCopy = `${noteName ? noteName.trim() + "\n\n" : ""}${getEditorText()}`.trim();
-    navigator.clipboard.writeText(textToCopy).then(() => {
-      showAlert("Note copied to clipboard!", "Success", "success");
-    }).catch((err) => {
-      showAlert(`Copy failed: ${err.message}`, "Error", "danger");
-    });
-  }
-
   function exportTXT() {
     const blob = new Blob([getEditorText()], { type: "text/plain" });
     const link = document.createElement("a");
@@ -599,6 +590,16 @@ function App() {
     });
     documentPdf.save(`${noteName.trim() || "note"}.pdf`);
     setExportOpen(false);
+  }
+
+  async function copyAllText() {
+    try {
+      const textToCopy = getEditorText();
+      await navigator.clipboard.writeText(textToCopy);
+      await showAlert("Copied to clipboard!", "Success", "success");
+    } catch (err) {
+      await showAlert(`Copy failed: ${err.message}`, "Error", "danger");
+    }
   }
 
   async function extendNoteLife() {
@@ -1187,9 +1188,9 @@ function App() {
         onPaste={handlePaste}
         onKeyDown={handleEditorKeyDown}
         onSave={saveNote}
-        onCopyNote={copyNoteToClipboard}
         onExportTXT={exportTXT}
         onExportPDF={exportPDF}
+        onCopyAll={copyAllText}
         onDeleteOpenNote={deleteOpenNote}
         onExtendNote={extendNoteLife}
         onInsertTable={handleInsertTable}
