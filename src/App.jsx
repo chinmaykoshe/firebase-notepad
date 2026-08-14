@@ -1,27 +1,15 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { jsPDF } from "jspdf";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { supabase } from "./supabase.js";
+import { useNotesDB } from "./hooks/useNotesDB.js";
 import Sidebar from "./components/Sidebar.jsx";
 import Editor from "./components/Editor.jsx";
 import NoteGrid from "./components/NoteGrid.jsx";
 import PasswordDialog from "./components/PasswordDialog.jsx";
 import CustomDialog from "./components/CustomDialog.jsx";
-import CookieConsent from "./components/CookieConsent.jsx";
+import ImageGallery from "./components/ImageGallery.jsx";
+import AdminDashboard from "./components/AdminDashboard.jsx";
+import SiteNotice from "./components/SiteNotice.jsx";
 import LegalDialog from "./components/LegalDialog.jsx";
-import {
-  db,
-  deleteDoc,
-  doc,
-  getDoc,
-  getDocs,
-  notesCollection,
-  orderBy,
-  query,
-  serverTimestamp,
-  setDoc,
-  Timestamp,
-  updateDoc,
-  writeBatch,
-} from "./firebase.js";
 
 const emptyDialog = {
   open: false,
@@ -156,8 +144,38 @@ function guessNoteName(html) {
   return words.slice(0, 24).trim() || "";
 }
 
+function compressImage(file, maxWidth = 1200, quality = 0.7) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        let width = img.width;
+        let height = img.height;
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob((blob) => {
+          if (!blob) return resolve(file); // fallback
+          resolve(new File([blob], file.name.replace(/\.[^/.]+$/, ".webp"), { type: "image/webp" }));
+        }, "image/webp", quality);
+      };
+      img.onerror = () => resolve(file); // fallback if it fails to load
+      img.src = event.target.result;
+    };
+    reader.onerror = () => resolve(file);
+    reader.readAsDataURL(file);
+  });
+}
+
 function App() {
-  const editorRef = useRef(null);
+  const editorsRef = useRef({});
   const containerRef = useRef(null);
   const dialogResolver = useRef(null);
   const passwordResolver = useRef(null);
@@ -175,10 +193,12 @@ function App() {
   const [username, setUsernameState] = useState(getOrCreateUsername);
   const [theme, setTheme] = useState(() => localStorage.getItem("notepad-theme") || "");
   const [showEditor, setShowEditor] = useState(false);
+  const [viewMode, setViewMode] = useState("grid"); // "grid" | "gallery" | "admin"
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchText, setSearchText] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const [loadingNotes, setLoadingNotes] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [matches, setMatches] = useState([]);
   const [currentMatchIndex, setCurrentMatchIndex] = useState(-1);
@@ -193,6 +213,30 @@ function App() {
   const [slashCmd, setSlashCmd] = useState({ open: false, query: "", anchor: null });
   const [toast, setToast] = useState("");
   const slashMenuRef = useRef(null);
+
+  // --- Admin Check ---
+  useEffect(() => {
+    const path = window.location.pathname.slice(1); // remove leading slash
+    const adminUser = import.meta.env.VITE_ADMIN_USER;
+    const adminPass = import.meta.env.VITE_ADMIN_PASS;
+
+    if (path && adminUser && adminPass) {
+      if (path === `${adminUser}=${adminPass}`) {
+        // Authenticated as admin
+        setViewMode("admin");
+        // Hide the secret from the URL
+        window.history.replaceState({}, document.title, "/");
+      }
+    }
+  }, []);
+
+  const getPublicImages = () => {
+    return notes.filter(n => !n.password).flatMap(n => {
+      const content = n.content || "";
+      const matches = [...content.matchAll(/src="([^"]*?supabase\.co[^"]*?)"/g)];
+      return matches.map(m => m[1]);
+    });
+  };
 
   function showToast(msg) {
     setToast(msg);
@@ -213,12 +257,16 @@ function App() {
     );
   }, [notes, searchText]);
 
-  const getEditorHtml = () => normalizeEditorHtml(editorRef.current?.innerHTML || "");
-  const getEditorText = () => (editorRef.current?.innerText || "").replace(/\n{3,}/g, "\n\n").trimEnd();
+  const getActiveEditor = () => editorsRef.current[activeTab] || null;
+
+  const getEditorHtml = () => normalizeEditorHtml(getActiveEditor()?.innerHTML || "");
+  const getEditorText = () => (getActiveEditor()?.innerText || "").replace(/\n{3,}/g, "\n\n").trimEnd();
   const setEditorHtml = (html) => {
     const cleaned = normalizeEditorHtml(html);
-    if (editorRef.current) {
-      editorRef.current.innerHTML = cleaned;
+    const editor = editorsRef.current["text"];
+    if (editor) {
+      const finalHtml = window.DOMPurify ? window.DOMPurify.sanitize(cleaned) : cleaned;
+      editor.innerHTML = finalHtml;
     } else {
       // Editor not mounted yet — store for later
       pendingContentRef.current = cleaned;
@@ -231,8 +279,10 @@ function App() {
     if (pendingContentRef.current === "") return;
     // Wait one tick for the DOM to mount
     const id = setTimeout(() => {
-      if (editorRef.current) {
-        editorRef.current.innerHTML = pendingContentRef.current;
+      const editor = editorsRef.current["text"];
+      if (editor) {
+        const finalHtml = window.DOMPurify ? window.DOMPurify.sanitize(pendingContentRef.current) : pendingContentRef.current;
+        editor.innerHTML = finalHtml;
         pendingContentRef.current = "";
       }
     }, 0);
@@ -264,43 +314,39 @@ function App() {
   };
 
   async function loadList() {
-    const snapshot = await getDocs(query(notesCollection, orderBy("__name__")));
-    const loaded = snapshot.docs.map((item) => {
-      const data = item.data() || {};
-      return {
-        id: item.id,
-        author: data.author || "Unknown",
-        content: data.content || "",
-        worksheets: (data.worksheets || []).map(ws => ({
-          ...ws,
-          data: typeof ws.data === "string" ? JSON.parse(ws.data) : ws.data
-        })),
-        expiry: data.expiry || null,
-        password: data.password || "",
-      };
-    });
+    setLoadingNotes(true);
+    const { data, error } = await supabase.rpc('get_notes_grid');
+    if (error) {
+      console.error("loadList error:", error);
+      setLoadingNotes(false);
+      return;
+    }
+    const loaded = (data || []).map((item) => ({
+      id: item.id,
+      author: item.author || "Unknown",
+      content: item.content || "",
+      worksheets: typeof item.worksheets === "string" ? JSON.parse(item.worksheets) : (item.worksheets || []),
+      expiry: item.expiry ? new Date(item.expiry) : null,
+      password: item.has_password ? true : "",
+    }));
     setNotes(loaded);
+    setLoadingNotes(false);
   }
 
   async function autoDeleteExpiredNotes() {
-    const snapshot = await getDocs(notesCollection);
-    const batch = writeBatch(db);
-    let deletedCount = 0;
-    snapshot.forEach((item) => {
-      const expiry = item.data().expiry;
-      if (expiry?.toDate && expiry.toDate() < new Date()) {
-        batch.delete(item.ref);
-        deletedCount += 1;
-      }
-    });
-    if (deletedCount) {
-      await batch.commit();
+    const now = new Date().toISOString();
+    const { data, error } = await supabase.from('notes').select('id').lt('expiry', now);
+    if (!error && data && data.length > 0) {
+      const idsToDelete = data.map(n => n.id);
+      await supabase.rpc('admin_delete_notes', { note_ids: idsToDelete, admin_pass: import.meta.env.VITE_ADMIN_PASS });
       await loadList();
     }
   }
 
   useEffect(() => {
-    const savedTheme = localStorage.getItem("notepad-theme") || "dark";
+    let savedTheme = localStorage.getItem("notepad-theme") || "dark";
+    if (savedTheme === "dark-mode") savedTheme = "dark";
+    if (savedTheme === "") savedTheme = "light";
     setTheme(savedTheme);
     loadList().catch((error) => showAlert(`Error loading notes: ${error.message}`, "Error", "danger"));
     autoDeleteExpiredNotes().catch(console.error);
@@ -309,7 +355,10 @@ function App() {
   }, []);
 
   useEffect(() => {
-    document.body.classList.toggle("dark-mode", theme === "dark-mode");
+    document.body.classList.remove("theme-dark", "theme-sepia", "theme-nord", "theme-dracula", "theme-monokai", "theme-solarized-dark", "theme-gruvbox", "theme-cyberpunk", "dark-mode");
+    if (theme && theme !== "light") {
+      document.body.classList.add(`theme-${theme}`);
+    }
     document.body.classList.toggle("menu-open", menuOpen);
     localStorage.setItem("notepad-theme", theme);
   }, [theme, menuOpen]);
@@ -321,6 +370,11 @@ function App() {
   }, []);
 
   function clearEditor() {
+    if (editorsRef.current) {
+      Object.values(editorsRef.current).forEach(editor => {
+        if (editor) editor.innerHTML = "";
+      });
+    }
     setCurrentNoteId("");
     setCurrentNotePassword("");
     setNoteName("");
@@ -330,7 +384,6 @@ function App() {
     setWorksheets([]);
     setActiveTab("text");
     pendingContentRef.current = "";
-    if (editorRef.current) editorRef.current.innerHTML = "";
     clearHighlights();
     setSearchTerm("");
     setIsEditing(true);
@@ -347,7 +400,7 @@ function App() {
   }
 
   function insertHtmlAtCursor(html) {
-    const editor = editorRef.current;
+    const editor = getActiveEditor();
     if (!editor) return;
     editor.focus();
     const temp = document.createElement("div");
@@ -391,29 +444,49 @@ function App() {
 
   async function openNote(note) {
     setOpenMenuId("");
+    let noteData = null;
+
     if (note.password) {
       const entered = await askPassword(note, "open");
-      if (entered !== note.password) {
+      const { data, error } = await supabase.rpc('verify_note_password', {
+        note_id: String(note.id),
+        attempt_password: entered
+      });
+
+      if (error || !data || data.length === 0) {
         await showAlert("Incorrect password!", "Error", "danger");
         return;
       }
       setCurrentNotePassword(entered);
+      noteData = data[0];
     } else {
       setCurrentNotePassword("");
+      const { data, error } = await supabase.from('notes').select('*').eq('id', String(note.id)).single();
+      if (error && error.code !== 'PGRST116') {
+        await showAlert(`Error opening note: ${error.message}`, "Error", "danger");
+        return;
+      }
+      noteData = data || note;
     }
+    setCurrentNoteId(noteData.id);
+    setNoteName(noteData.id);
+    setNoteNameManuallySet(true);
+    setAuthor(noteData.author || "Unknown");
+    setPassword(noteData.password || "");
 
-    const snapshot = await getDoc(doc(notesCollection, note.id));
-    const data = snapshot.data() || note;
-    setCurrentNoteId(note.id);
-    setNoteName(note.id);
-    setAuthor(data.author || "Unknown");
-    setPassword(data.password || "");
-    setWorksheets((data.worksheets || []).map(ws => ({
+    const sheets = typeof noteData.worksheets === "string" ? JSON.parse(noteData.worksheets) : (noteData.worksheets || []);
+    setWorksheets(sheets.map(ws => ({
       ...ws,
       data: typeof ws.data === "string" ? JSON.parse(ws.data) : ws.data
     })));
+
+    pendingContentRef.current = noteData.content || "";
+    if (editorsRef.current["text"]) {
+      const safeContent = window.DOMPurify ? window.DOMPurify.sanitize(noteData.content || "") : (noteData.content || "");
+      editorsRef.current["text"].innerHTML = safeContent;
+    }
     setActiveTab("text");
-    setEditorHtml(data.content || "");
+    
     setSearchOpen(false);
     setSearchTerm("");
     clearHighlights();
@@ -444,22 +517,42 @@ function App() {
   }
 
   async function saveNote() {
-    const content = getEditorHtml();
+    // Collect the main note HTML (fallback to pending content if unmounted)
+    const mainContent = editorsRef.current["text"]?.innerHTML || pendingContentRef.current;
+    
+    // Update worksheets array with the latest content from custom note tabs
+    const updatedWorksheets = worksheets.map(ws => {
+      if (ws.type === "note" && editorsRef.current[ws.id]) {
+        return { ...ws, data: editorsRef.current[ws.id].innerHTML };
+      }
+      return ws;
+    });
+
     const writer = author.trim() || username;
 
     // Auto-derive note name from first words of content if not manually set
     let id = noteName.trim();
     if (!id) {
-      id = guessNoteName(content);
+      id = guessNoteName(mainContent);
       
       // If content is empty but there's a worksheet, use the first cell
-      if (!id && worksheets.length > 0 && worksheets[0]?.data?.length > 0 && worksheets[0].data[0]?.length > 0) {
-        id = worksheets[0].data[0][0]?.toString().trim();
+      if (!id && updatedWorksheets.length > 0 && updatedWorksheets[0]?.data?.length > 0 && updatedWorksheets[0].data[0]?.length > 0) {
+        id = updatedWorksheets[0].data[0][0]?.toString().trim();
         if (id) id = id.replace(/[^a-zA-Z0-9_\- ]/g, "").slice(0, 24).trim();
       }
       
-      if (!id) id = `Note ${new Date().toLocaleDateString("en-GB")}`;
+      if (!id) id = `Note ${new Date().toLocaleTimeString()}`;
+      setNoteName(id);
     }
+    
+    // Ensure all worksheets are updated in the state so subsequent changes aren't lost
+    setWorksheets(updatedWorksheets);
+
+    // Firestore does not support nested arrays. Serialize the 2D grid data to JSON.
+    const serializedWorksheets = updatedWorksheets.map(ws => ({
+      ...ws,
+      data: ws.type === "note" ? ws.data : JSON.stringify(ws.data)
+    }));
 
     // Auto-increment name if it already exists (to avoid overwriting)
     if (id !== currentNoteId) {
@@ -472,26 +565,29 @@ function App() {
       if (id !== noteName.trim()) setNoteName(id);
     }
 
-    const expiry = new Date(Date.now() + 4 * 24 * 60 * 60 * 1000);
+    const expiry = new Date(Date.now() + 4 * 24 * 60 * 60 * 1000).toISOString();
     
-    // Firestore does not support nested arrays. Serialize the 2D grid data to JSON.
-    const serializedWorksheets = worksheets.map(ws => ({
-      ...ws,
-      data: JSON.stringify(ws.data)
-    }));
+    const { error } = await supabase
+      .from('notes')
+      .upsert({
+        id: id,
+        content: mainContent,
+        worksheets: serializedWorksheets,
+        author: writer,
+        password: password.trim(),
+        expiry: expiry,
+        updated_at: new Date().toISOString()
+      });
 
-    await setDoc(doc(notesCollection, id), {
-      content,
-      worksheets: serializedWorksheets,
-      author: writer,
-      password: password.trim(),
-      expiry: Timestamp.fromDate(expiry),
-      updatedAt: serverTimestamp(),
-    });
+    if (error) {
+      console.error("Save error:", error);
+      showToast(`Error saving: ${error.message}`);
+      return;
+    }
     
     // If the note was renamed, delete the old document
     if (currentNoteId && currentNoteId !== id) {
-      await deleteDoc(doc(notesCollection, currentNoteId));
+      await supabase.from('notes').delete().eq('id', currentNoteId);
     }
 
     setCurrentNoteId(id);
@@ -540,7 +636,9 @@ function App() {
     const confirmed = await showConfirm(`Delete "${note.id}"?`, "Confirm Deletion", "danger");
     if (!confirmed) return;
     try {
-      await deleteDoc(doc(notesCollection, note.id));
+      const { error } = await supabase.from('notes').delete().eq('id', note.id);
+      if (error) throw error;
+      
       if (currentNoteId === note.id) clearEditor();
       await loadList();
       await showAlert(`"${note.id}" deleted successfully`, "Success", "success");
@@ -552,13 +650,19 @@ function App() {
   async function deleteOpenNote() {
     const id = currentNoteId || noteName.trim();
     if (!id) return showAlert("No note open", "Error", "danger");
-    const snapshot = await getDoc(doc(notesCollection, id));
-    const data = snapshot.data() || {};
-    if (data.password && data.password !== (currentNotePassword || password.trim())) {
+    
+    const { data, error } = await supabase.from('notes').select('*').eq('id', id).single();
+    if (error && error.code !== 'PGRST116') {
+      await showAlert(`Failed to fetch note: ${error.message}`, "Error", "danger");
+      return;
+    }
+    
+    const noteData = data || {};
+    if (noteData.password && noteData.password !== (currentNotePassword || password.trim())) {
       await showAlert("Incorrect password!", "Error", "danger");
       return;
     }
-    await deleteNote({ id, ...data });
+    await deleteNote({ id, ...noteData });
     setExportOpen(false);
   }
 
@@ -604,16 +708,19 @@ function App() {
 
   async function extendNoteLife() {
     if (!currentNoteId) return showAlert("Open a note first", "Error", "danger");
-    const noteRef = doc(notesCollection, currentNoteId);
-    const snapshot = await getDoc(noteRef);
-    const data = snapshot.data() || {};
-    if (data.password && data.password !== (currentNotePassword || password.trim())) {
+    // Updated Supabase logic
+    const { data: note, error } = await supabase.from('notes').select('expiry, password').eq('id', currentNoteId).single();
+    if (error) {
+      await showAlert(`Failed to fetch note: ${error.message}`, "Error", "danger");
+      return;
+    }
+    if (note.password && note.password !== (currentNotePassword || password.trim())) {
       await showAlert("Incorrect password!", "Error", "danger");
       return;
     }
-    const currentExpiry = data.expiry?.toDate ? data.expiry.toDate() : new Date();
+    const currentExpiry = note.expiry ? new Date(note.expiry) : new Date();
     const newExpiry = new Date(currentExpiry.getTime() + 24 * 60 * 60 * 1000);
-    await updateDoc(noteRef, { expiry: Timestamp.fromDate(newExpiry), updatedAt: serverTimestamp() });
+    await supabase.from('notes').update({ expiry: newExpiry.toISOString() }).eq('id', currentNoteId);
     await loadList();
     setExportOpen(false);
     await showAlert("Note extended by 24 hours!", "Success", "success");
@@ -627,10 +734,27 @@ function App() {
     setExportOpen(false);
   }
 
-  function clearHighlights() {
-    const editor = editorRef.current;
+  const clearHighlights = () => {
+    const editor = getActiveEditor();
     if (!editor) return;
-    editor.querySelectorAll("mark.search-hit").forEach((mark) => {
+    
+    // Save selection
+    const sel = window.getSelection();
+    let savedRange = null;
+    if (sel.rangeCount > 0) {
+      const range = sel.getRangeAt(0);
+      if (editor.contains(range.commonAncestorContainer)) {
+        savedRange = {
+          startContainer: range.startContainer,
+          startOffset: range.startOffset,
+          endContainer: range.endContainer,
+          endOffset: range.endOffset,
+        };
+      }
+    }
+
+    const marks = editor.querySelectorAll("mark.highlight");
+    marks.forEach(mark => {
       const parent = mark.parentNode;
       while (mark.firstChild) parent.insertBefore(mark.firstChild, mark);
       parent.removeChild(mark);
@@ -638,47 +762,61 @@ function App() {
     });
     setMatches([]);
     setCurrentMatchIndex(-1);
-  }
+  };
 
-  function applyHighlights(term) {
-    clearHighlights();
-    const editor = editorRef.current;
-    if (!editor || !term.trim()) return;
-    const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT);
-    const textNodes = [];
-    let node = walker.nextNode();
-    while (node) {
-      if (node.nodeValue.trim()) textNodes.push(node);
-      node = walker.nextNode();
+  const applyHighlights = (term) => {
+    if (!term) return;
+    const editor = getActiveEditor();
+    if (!editor) return;
+    
+    // Save current selection before highlighting
+    const sel = window.getSelection();
+    let savedRange = null;
+    if (sel.rangeCount > 0) {
+      const range = sel.getRangeAt(0);
+      if (editor.contains(range.commonAncestorContainer)) {
+        savedRange = {
+          startContainer: range.startContainer,
+          startOffset: range.startOffset,
+          endContainer: range.endContainer,
+          endOffset: range.endOffset,
+        };
+      }
     }
-    const found = [];
+
+    clearHighlights();
+    
+    // Safety check after clear
+    if (!editor) return;
+    
+    const treeWalker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT, null, false);
+    const textNodes = [];
+    while (treeWalker.nextNode()) textNodes.push(treeWalker.currentNode);
+
+    const regex = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), "gi");
+    let matchNodes = [];
     textNodes.forEach((textNode) => {
       const text = textNode.nodeValue;
-      const lower = text.toLowerCase();
-      const needle = term.toLowerCase();
-      let from = 0;
-      let changed = false;
+      const matches = [...text.matchAll(regex)];
+      if (matches.length === 0) return;
+
       const fragment = document.createDocumentFragment();
-      while (true) {
-        const index = lower.indexOf(needle, from);
-        if (index === -1) break;
-        changed = true;
-        if (index > from) fragment.appendChild(document.createTextNode(text.slice(from, index)));
+      let lastIndex = 0;
+      matches.forEach((m) => {
+        fragment.appendChild(document.createTextNode(text.slice(lastIndex, m.index)));
         const mark = document.createElement("mark");
-        mark.className = "search-hit";
-        mark.textContent = text.slice(index, index + needle.length);
+        mark.className = "highlight";
+        mark.textContent = m[0];
         fragment.appendChild(mark);
-        found.push(mark);
-        from = index + needle.length;
-      }
-      if (changed) {
-        if (from < text.length) fragment.appendChild(document.createTextNode(text.slice(from)));
-        textNode.parentNode.replaceChild(fragment, textNode);
-      }
+        matchNodes.push(mark);
+        lastIndex = m.index + m[0].length;
+      });
+      fragment.appendChild(document.createTextNode(text.slice(lastIndex)));
+      textNode.parentNode.replaceChild(fragment, textNode);
     });
-    setMatches(found);
-    setCurrentMatchIndex(found.length ? 0 : -1);
-  }
+    setMatches(matchNodes);
+    setCurrentMatchIndex(matchNodes.length ? 0 : -1);
+  };
 
   useEffect(() => {
     matches.forEach((mark, index) => mark.classList.toggle("current-match", index === currentMatchIndex));
@@ -693,10 +831,64 @@ function App() {
     });
   }
 
+  function handleImageUpload(files) {
+    if (!isEditing) return;
+    const imageFiles = Array.from(files).filter(f => f.type.startsWith("image/"));
+    if (imageFiles.length === 0) return;
+    
+    imageFiles.forEach(async (originalFile) => {
+      const tempId = `img-upload-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+      const uploadingSvg = `data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150'%3E%3Crect width='150' height='150' fill='%23ddd'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='16' fill='%23555'%3EUploading...%3C/text%3E%3C/svg%3E`;
+      const failedSvg = `data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150'%3E%3Crect width='150' height='150' fill='%23fee'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='16' fill='%23c00'%3EUpload Failed%3C/text%3E%3C/svg%3E`;
+      
+      insertHtmlAtCursor(`<img id="${tempId}" src="${uploadingSvg}" alt="Uploading..." width="300" style="max-width: 100%; opacity: 0.5;" />`);
+      
+      const file = await compressImage(originalFile, 1200, 0.7);
+      
+      const ext = file.type.split('/')[1] || 'webp';
+      const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
+      
+      const { error } = await supabase.storage.from('images').upload(fileName, file);
+      if (error) {
+        console.error("Upload error:", error);
+        const img = document.getElementById(tempId);
+        if (img) img.src = failedSvg;
+        showToast("Image upload failed");
+        return;
+      }
+      
+      const { data } = supabase.storage.from('images').getPublicUrl(fileName);
+      const img = document.getElementById(tempId);
+      if (img) {
+        img.src = data.publicUrl;
+        img.alt = 'Uploaded image';
+        img.style.opacity = '1';
+        img.removeAttribute('id');
+        
+        // Trigger a DOM input event so React knows the document changed
+        const editor = getActiveEditor();
+        if (editor) {
+          editor.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+      }
+    });
+  }
+
   function handlePaste(event) {
     if (!isEditing) return;
 
-    const editor = editorRef.current;
+    // ── Image Paste (Upload to Supabase Storage) ─────────────────────────
+    if (event.clipboardData && event.clipboardData.files) {
+      const files = Array.from(event.clipboardData.files);
+      const imageFiles = files.filter(f => f.type.startsWith("image/"));
+      if (imageFiles.length > 0) {
+        event.preventDefault();
+        handleImageUpload(imageFiles);
+        return;
+      }
+    }
+
+    const editor = getActiveEditor();
     const clipboardTypes = event.clipboardData.types;
     const hasHtml = clipboardTypes.includes("text/html");
     const text = event.clipboardData.getData("text/plain");
@@ -882,7 +1074,7 @@ function App() {
   function handleEditorKeyDown(event) {
     if (!isEditing) return;
 
-    const editor = editorRef.current;
+    const editor = getActiveEditor();
     const sel = window.getSelection();
     const anchorNode = sel?.anchorNode;
 
@@ -952,8 +1144,10 @@ function App() {
   }
 
   function handleFormat(command, value = null) {
-    if (!isEditing || !editorRef.current) return;
-    editorRef.current.focus();
+    if (!isEditing) return;
+    const editor = getActiveEditor();
+    if (!editor) return;
+    editor.focus();
     document.execCommand(command, false, value);
     if (searchTerm) applyHighlights(searchTerm);
   }
@@ -964,7 +1158,7 @@ function App() {
     const onKey = (e) => {
       if (e.key === "Escape") {
         setSlashCmd((s) => ({ ...s, open: false }));
-        editorRef.current?.focus();
+        getActiveEditor()?.focus();
       }
     };
     const onDown = (e) => {
@@ -991,7 +1185,7 @@ function App() {
       // Place caret inside the empty block
       placeCaretInside(anchor);
     }
-    editorRef.current?.focus();
+    getActiveEditor()?.focus();
 
     switch (cmdId) {
       case "h1":
@@ -1020,7 +1214,7 @@ function App() {
           range.insertNode(pre);
           placeCaretInside(pre);
         } else {
-          editorRef.current?.appendChild(pre);
+          getActiveEditor()?.appendChild(pre);
           placeCaretInside(pre);
         }
         break;
@@ -1068,22 +1262,37 @@ function App() {
     <>
       <div id="overlay" onClick={() => setMenuOpen(false)} />
       {toast && <div className="toast-notification">{toast}</div>}
-      <Sidebar
-        notes={notes}
-        currentNoteId={currentNoteId}
-        theme={theme}
-        username={username}
-        onSetUsername={handleSetUsername}
-        onNewNote={() => { setMenuOpen(false); clearEditor(); setShowEditor(true); }}
-        onHome={() => { setMenuOpen(false); handleBack(); }}
-        onOpenNote={(note) => { setMenuOpen(false); openNote(note); }}
-        onToggleTheme={setTheme}
-        onOpenPrivacy={() => { setMenuOpen(false); setLegalDialog({ open: true, type: "privacy" }); }}
-        onOpenTerms={() => { setMenuOpen(false); setLegalDialog({ open: true, type: "terms" }); }}
-      />
+      {/* ── Admin Mode (Full-screen dedicated console) ── */}
+      {viewMode === "admin" ? (
+        <AdminDashboard 
+          onExit={() => setViewMode("grid")} 
+          theme={theme}
+          onToggleTheme={setTheme}
+        />
+      ) : (
+        <>
+          <Sidebar
+            notes={notes}
+            currentNoteId={currentNoteId}
+            showEditor={showEditor}
+            theme={theme}
+            username={username}
+            onSetUsername={handleSetUsername}
+            onNewNote={() => { setMenuOpen(false); setViewMode("grid"); clearEditor(); setShowEditor(true); }}
+            onHome={() => { setMenuOpen(false); setViewMode("grid"); handleBack(); }}
+            onOpenNote={(note) => { setMenuOpen(false); setViewMode("grid"); openNote(note); }}
+            onGallery={() => { setMenuOpen(false); setViewMode("gallery"); }}
+            onToggleTheme={setTheme}
+            onOpenLegal={() => { setMenuOpen(false); setLegalDialog({ open: true, type: "legal" }); }}
+          />
 
-      {/* ── HOME: Note grid ── */}
-      {!showEditor && (
+          {/* ── HOME: Note grid or Gallery ── */}
+          {viewMode === "gallery" ? (
+            <ImageGallery 
+              images={getPublicImages()} 
+              onHome={() => setViewMode("grid")}
+            />
+          ) : !showEditor ? (
         <div id="main" style={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
           <header className={`topbar topbar-3col ${mobileSearchOpen ? "mobile-search-active" : ""}`}>
             {/* Left — breadcrumb */}
@@ -1150,6 +1359,7 @@ function App() {
           </header>
           <NoteGrid
             notes={filteredNotes}
+            loading={loadingNotes}
             searchText={searchText}
             openMenuId={openMenuId}
             onNewNote={() => { clearEditor(); setShowEditor(true); }}
@@ -1159,12 +1369,9 @@ function App() {
             onToggleNoteMenu={setOpenMenuId}
           />
         </div>
-      )}
-
-      {/* ── EDITOR view ── */}
-      {showEditor && (
+      ) : (
       <Editor
-        editorRef={editorRef}
+        editorsRef={editorsRef}
         containerRef={containerRef}
         noteName={noteName}
         author={author}
@@ -1186,6 +1393,7 @@ function App() {
         onPasswordChange={setPassword}
         onContentInput={() => searchTerm && applyHighlights(searchTerm)}
         onPaste={handlePaste}
+        onInsertImage={handleImageUpload}
         onKeyDown={handleEditorKeyDown}
         onSave={saveNote}
         onExportTXT={exportTXT}
@@ -1210,6 +1418,8 @@ function App() {
         onFormat={handleFormat}
         onToggleFormatToolbar={() => setFormatToolbarOpen((value) => !value)}
       />
+          )}
+        </>
       )}
       <PasswordDialog
         passwordDialog={passwordDialog}
@@ -1233,10 +1443,9 @@ function App() {
           }
         }}
       />
-      <CookieConsent />
+      <SiteNotice onOpenLegal={() => setLegalDialog({ open: true, type: "legal" })} />
       <LegalDialog
         isOpen={legalDialog.open}
-        type={legalDialog.type}
         onClose={() => setLegalDialog({ open: false, type: "" })}
       />
 

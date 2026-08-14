@@ -71,15 +71,29 @@ export default function ImageResizer({ imgElement, containerRef, isEditing, onDe
   }, []);
 
   const updateRect = () => {
-    if (!imgElement || !containerRef.current) return;
+    if (!imgElement || !imgElement.isConnected || !containerRef.current) {
+      setRect(null);
+      return;
+    }
     const containerRect = containerRef.current.getBoundingClientRect();
     const imgRect = imgElement.getBoundingClientRect();
+
+    // Check if the image is within the visible bounds of the container
+    const isVisible = !(
+      imgRect.bottom < containerRect.top ||
+      imgRect.top > containerRect.bottom ||
+      imgRect.right < containerRect.left ||
+      imgRect.left > containerRect.right
+    );
+
     setRect({
       top: imgRect.top - containerRect.top,
       left: imgRect.left - containerRect.left,
       width: imgRect.width,
       height: imgRect.height,
+      visible: isVisible,
     });
+
     const w = Math.round(imgRect.width);
     const h = Math.round(imgRect.height);
     setImgSize({ width: w, height: h });
@@ -90,15 +104,23 @@ export default function ImageResizer({ imgElement, containerRef, isEditing, onDe
 
   useEffect(() => {
     if (!imgElement || !containerRef.current || !isEditing) return;
-    const scrollEl = containerRef.current.querySelector("#noteContent");
+
+    const onScrollOrResize = () => {
+      requestAnimationFrame(updateRect);
+    };
+
     updateRect();
-    window.addEventListener("resize", updateRect);
-    if (scrollEl) scrollEl.addEventListener("scroll", updateRect);
-    const obs = new ResizeObserver(updateRect);
+
+    window.addEventListener("resize", onScrollOrResize, { passive: true });
+    window.addEventListener("scroll", onScrollOrResize, { capture: true, passive: true });
+
+    const obs = new ResizeObserver(onScrollOrResize);
     obs.observe(imgElement);
+    if (containerRef.current) obs.observe(containerRef.current);
+
     return () => {
-      window.removeEventListener("resize", updateRect);
-      if (scrollEl) scrollEl.removeEventListener("scroll", updateRect);
+      window.removeEventListener("resize", onScrollOrResize);
+      window.removeEventListener("scroll", onScrollOrResize, { capture: true });
       obs.disconnect();
     };
   }, [imgElement, containerRef, isEditing]);
@@ -211,7 +233,7 @@ export default function ImageResizer({ imgElement, containerRef, isEditing, onDe
     }
   };
 
-  if (!rect || !isEditing) return null;
+  if (!rect || !rect.visible || !isEditing) return null;
 
   const handles = mobile ? MOBILE_HANDLES : ALL_HANDLES;
 
@@ -244,49 +266,86 @@ export default function ImageResizer({ imgElement, containerRef, isEditing, onDe
           />
         ))}
 
-        {/* Floating toolbar above the image */}
+        {/* Floating toolbar above the image (or below if near top) */}
         <div
           style={{
             position: "absolute",
-            top: mobile ? -52 : -44,
-            left: "50%",
-            transform: "translateX(-50%)",
+            top: rect.top < 55 ? "calc(100% + 8px)" : (mobile ? -50 : -42),
+            left: rect.left < 140 ? 0 : "50%",
+            transform: rect.left < 140 ? "none" : "translateX(-50%)",
             display: "flex",
-            gap: 4,
-            background: "var(--panel-bg)",
-            border: "1px solid var(--input-border)",
-            borderRadius: 8,
-            padding: mobile ? "5px 10px" : "3px 8px",
+            gap: 6,
+            background: "var(--surface, #18181f)",
+            border: "1px solid var(--border, #3a3a48)",
+            borderRadius: 10,
+            padding: mobile ? "6px 12px" : "4px 8px",
             pointerEvents: "auto",
             whiteSpace: "nowrap",
-            boxShadow: "0 3px 12px rgba(0,0,0,0.22)",
-            zIndex: 20,
+            boxShadow: "0 8px 24px rgba(0,0,0,0.5), 0 2px 8px rgba(0,0,0,0.3)",
+            zIndex: 200,
             alignItems: "center",
           }}
         >
-          <span style={{ fontSize: mobile ? "0.8rem" : "0.72rem", opacity: 0.65, marginRight: 6 }}>
+          <span style={{
+            fontSize: mobile ? "12px" : "11px",
+            fontWeight: "700",
+            fontFamily: "monospace",
+            background: "rgba(99, 102, 241, 0.18)",
+            color: "#a5b4fc",
+            border: "1px solid rgba(99, 102, 241, 0.35)",
+            padding: "2px 7px",
+            borderRadius: "5px",
+            display: "inline-flex",
+            alignItems: "center",
+          }}>
             {imgSize.width} × {imgSize.height}
           </span>
+          
           <button onClick={() => setShowPanel(v => !v)} style={toolbarBtnStyle(mobile, showPanel)}>
             {mobile ? "✎ Size" : "Size"}
           </button>
+          
           <button
             onClick={() => { imgElement.style.width = "100%"; imgElement.style.height = "auto"; setTimeout(() => { updateRect(); triggerInput(); }, 0); }}
             style={toolbarBtnStyle(mobile)}
-          >Full</button>
+          >
+            Full
+          </button>
+          
           <button
             onClick={() => { imgElement.style.width = ""; imgElement.style.height = ""; setTimeout(() => { updateRect(); triggerInput(); }, 0); }}
             style={toolbarBtnStyle(mobile)}
-          >Reset</button>
-          <button onClick={onDeselect} style={{ ...toolbarBtnStyle(mobile), color: "var(--danger-bg)" }}>✕</button>
+          >
+            Reset
+          </button>
+          
+          <button
+            title="Download Image"
+            onClick={() => {
+              const a = document.createElement("a");
+              a.href = imgElement.src;
+              a.download = `image_${Date.now()}.png`;
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+            }}
+            style={{ ...toolbarBtnStyle(mobile), display: "flex", alignItems: "center", gap: 4 }}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+            {!mobile && "Download"}
+          </button>
+          
+          <button onClick={onDeselect} style={{ ...toolbarBtnStyle(mobile), color: "#ef4444", padding: mobile ? "6px 10px" : "3px 7px" }}>
+            ✕
+          </button>
         </div>
 
         {/* Size input panel — bottom sheet style on mobile */}
         {showPanel && (
-          <div style={mobile ? mobilePanel : desktopPanel}>
+          <div style={mobile ? mobilePanel : desktopPanel(rect)}>
             <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", justifyContent: "center" }}>
               <label style={labelStyle(mobile)}>
-                W (px)
+                <span>Width (px)</span>
                 <input
                   type="number"
                   value={inputW}
@@ -294,9 +353,9 @@ export default function ImageResizer({ imgElement, containerRef, isEditing, onDe
                   style={numInputStyle(mobile)}
                 />
               </label>
-              <span style={{ opacity: 0.4, fontSize: "1.1rem" }}>×</span>
+              <span style={{ opacity: 0.5, fontSize: "1.2rem", fontWeight: "bold" }}>×</span>
               <label style={labelStyle(mobile)}>
-                H (px)
+                <span>Height (px)</span>
                 <input
                   type="number"
                   value={inputH}
@@ -306,7 +365,7 @@ export default function ImageResizer({ imgElement, containerRef, isEditing, onDe
               </label>
             </div>
             {mobile && (
-              <button onClick={() => setShowPanel(false)} style={{ ...toolbarBtnStyle(true), marginTop: 8, width: "100%" }}>
+              <button onClick={() => setShowPanel(false)} style={{ ...toolbarBtnStyle(true, true), marginTop: 12, width: "100%" }}>
                 Done
               </button>
             )}
@@ -320,16 +379,17 @@ export default function ImageResizer({ imgElement, containerRef, isEditing, onDe
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function toolbarBtnStyle(mobile, active = false) {
   return {
-    fontSize: mobile ? "0.85rem" : "0.72rem",
-    padding: mobile ? "5px 12px" : "2px 8px",
+    fontSize: mobile ? "0.85rem" : "0.75rem",
+    padding: mobile ? "6px 12px" : "3px 9px",
     height: mobile ? 36 : "auto",
     minWidth: mobile ? 52 : "auto",
-    border: "1px solid var(--input-border)",
-    borderRadius: 5,
-    background: active ? "var(--btn-bg)" : "var(--input-bg)",
-    color: active ? "var(--btn-text)" : "var(--text-color)",
+    border: "1px solid var(--border, #2a2a38)",
+    borderRadius: 6,
+    background: active ? "linear-gradient(135deg, #6366f1, #8b5cf6)" : "var(--surface2, #1e1e27)",
+    color: active ? "#ffffff" : "var(--text, #f0f0f8)",
     cursor: "pointer",
     fontWeight: 600,
+    transition: "all 0.15s ease",
   };
 }
 
@@ -341,47 +401,49 @@ function labelStyle(mobile) {
     gap: 4,
     alignItems: "flex-start",
     fontWeight: 600,
+    color: "var(--text)",
   };
 }
 
 function numInputStyle(mobile) {
   return {
-    width: mobile ? 90 : 70,
-    padding: mobile ? "8px 10px" : "3px 6px",
-    borderRadius: 5,
-    border: "1px solid var(--input-border)",
-    background: "var(--input-bg)",
-    color: "var(--text-color)",
-    fontSize: mobile ? "1rem" : "0.82rem",
+    width: mobile ? 90 : 75,
+    padding: mobile ? "8px 10px" : "4px 8px",
+    borderRadius: 6,
+    border: "1px solid var(--border, #2a2a38)",
+    background: "var(--bg, #0f0f14)",
+    color: "var(--text, #f0f0f8)",
+    fontSize: mobile ? "1rem" : "0.85rem",
+    outline: "none",
   };
 }
 
-const desktopPanel = {
+const desktopPanel = (rect) => ({
   position: "absolute",
-  top: -108,
-  left: "50%",
-  transform: "translateX(-50%)",
-  background: "var(--panel-bg)",
-  border: "1px solid var(--input-border)",
-  borderRadius: 8,
-  padding: "10px 14px",
+  top: rect.top < 110 ? "calc(100% + 52px)" : -100,
+  left: rect.left < 140 ? 0 : "50%",
+  transform: rect.left < 140 ? "none" : "translateX(-50%)",
+  background: "var(--surface, #18181f)",
+  border: "1px solid var(--border, #3a3a48)",
+  borderRadius: 12,
+  padding: "12px 16px",
   pointerEvents: "auto",
-  boxShadow: "0 3px 12px rgba(0,0,0,0.22)",
-  zIndex: 30,
+  boxShadow: "0 12px 36px rgba(0,0,0,0.6)",
+  zIndex: 220,
   whiteSpace: "nowrap",
-};
+});
 
 const mobilePanel = {
   position: "fixed",
   bottom: 0,
   left: 0,
   right: 0,
-  background: "var(--panel-bg)",
-  border: "1px solid var(--input-border)",
-  borderTop: "2px solid var(--btn-bg)",
+  background: "var(--surface, #18181f)",
+  border: "1px solid var(--border, #3a3a48)",
+  borderTop: "2px solid #6366f1",
   borderRadius: "16px 16px 0 0",
   padding: "20px 24px 32px",
   pointerEvents: "auto",
-  boxShadow: "0 -4px 24px rgba(0,0,0,0.28)",
+  boxShadow: "0 -8px 32px rgba(0,0,0,0.6)",
   zIndex: 9000,
 };

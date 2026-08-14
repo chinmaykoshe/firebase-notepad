@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 
-function Sidebar({ notes = [], currentNoteId, theme, username, onSetUsername, onNewNote, onHome, onOpenNote, onToggleTheme, onOpenPrivacy, onOpenTerms }) {
+function Sidebar({ notes = [], currentNoteId, showEditor, viewMode, theme, username, onSetUsername, onNewNote, onHome, onOpenNote, onGallery, onAdmin, onToggleTheme, onOpenLegal }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const [notesListOpen, setNotesListOpen] = useState(false);
@@ -60,7 +60,7 @@ function Sidebar({ notes = [], currentNoteId, theme, username, onSetUsername, on
               </svg>
             </div>
           )}
-          <div className="sidebar-user-email">Firebase Notepad</div>
+          <div className="sidebar-user-email">Supabase Notepad</div>
         </div>
       </div>
 
@@ -68,18 +68,28 @@ function Sidebar({ notes = [], currentNoteId, theme, username, onSetUsername, on
       <div className="sidebar-section">
         <div className="sidebar-section-label">Main</div>
 
-        <button className="nav-item active" onClick={() => setNotesListOpen(!notesListOpen)}>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-            <polyline points="14,2 14,8 20,8"/>
-            <line x1="16" y1="13" x2="8" y2="13"/>
-            <line x1="16" y1="17" x2="8" y2="17"/>
-          </svg>
-          All notes
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: "auto", transform: notesListOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
-            <polyline points="6 9 12 15 18 9"/>
-          </svg>
-        </button>
+        <div className={`nav-item ${viewMode === "grid" && !showEditor ? 'active' : ''}`} style={{ display: "flex", alignItems: "center", padding: 0 }}>
+          <button 
+            onClick={() => { onHome(); setNotesListOpen(true); }}
+            style={{ flex: 1, display: "flex", alignItems: "center", gap: "8px", background: "none", border: "none", color: "inherit", padding: "8px 12px", cursor: "pointer", fontSize: "inherit", fontWeight: "inherit" }}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14,2 14,8 20,8"/>
+              <line x1="16" y1="13" x2="8" y2="13"/>
+              <line x1="16" y1="17" x2="8" y2="17"/>
+            </svg>
+            All notes
+          </button>
+          <button 
+            onClick={(e) => { e.stopPropagation(); setNotesListOpen(!notesListOpen); }}
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", color: "inherit", padding: "8px 12px", cursor: "pointer", opacity: 0.6 }}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: notesListOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </button>
+        </div>
         
         {notesListOpen && (
           <div className="sidebar-notes-list" style={{ marginLeft: "14px", borderLeft: "1px solid var(--border)", paddingLeft: "8px", marginTop: "4px", marginBottom: "8px", display: "flex", flexDirection: "column", gap: "2px" }}>
@@ -101,40 +111,62 @@ function Sidebar({ notes = [], currentNoteId, theme, username, onSetUsername, on
           </div>
         )}
 
-        <button className="nav-item" onClick={onNewNote} style={{ marginTop: "4px" }}>
+        <button className={`nav-item ${showEditor && !currentNoteId ? 'active' : ''}`} onClick={onNewNote}>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 20h9"/>
-            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+            <path d="M12 5v14"/>
+            <path d="M5 12h14"/>
           </svg>
           New note
         </button>
+
+        <button className={`nav-item ${viewMode === "gallery" ? 'active' : ''}`} onClick={onGallery}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            <circle cx="8.5" cy="8.5" r="1.5"></circle>
+            <polyline points="21 15 16 10 5 21"></polyline>
+          </svg>
+          Public Gallery
+        </button>
       </div>
 
-      {/* ── SETTINGS ── */}
+      <div style={{ flex: 1 }} />
       <div className="sidebar-bottom-section">
         <div className="sidebar-section-label">Settings</div>
 
-        <div className="theme-row">
-          <span style={{ display: "flex", alignItems: "center", gap: 9 }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.55 }}>
-              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+        <div style={{ padding: "8px 10px", display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-dim)", display: "flex", alignItems: "center", gap: 6 }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
             </svg>
-            Dark mode
-          </span>
-          <label className="switch">
-            <input
-              type="checkbox"
-              id="themeToggle"
-              checked={theme === "dark-mode"}
-              onChange={(e) => onToggleTheme(e.target.checked ? "dark-mode" : "")}
-            />
-            <span className="slider" />
-          </label>
+            Theme
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px" }}>
+            {["light", "dark", "sepia", "nord", "dracula", "monokai", "solarized-dark", "gruvbox", "cyberpunk"].map((t) => (
+              <button
+                key={t}
+                onClick={() => onToggleTheme(t)}
+                style={{
+                  padding: "6px 8px",
+                  borderRadius: "var(--r-sm)",
+                  border: `1px solid ${theme === t ? "var(--accent)" : "var(--border)"}`,
+                  background: theme === t ? "var(--surface)" : "transparent",
+                  color: theme === t ? "var(--text)" : "var(--text-dim)",
+                  fontSize: "12px",
+                  fontWeight: theme === t ? 600 : 500,
+                  cursor: "pointer",
+                  textTransform: "capitalize",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  transition: "all 0.15s"
+                }}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="sidebar-legal">
-          <button onClick={onOpenPrivacy}>Privacy</button>
-          <button onClick={onOpenTerms}>Terms</button>
+          <button onClick={onOpenLegal}>Terms & Privacy</button>
         </div>
       </div>
 

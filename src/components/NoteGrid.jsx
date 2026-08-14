@@ -33,6 +33,7 @@ function stripHtml(html) {
 
 function NoteGrid({
   notes,
+  loading,
   openMenuId,
   onNewNote,
   onOpenNote,
@@ -43,12 +44,25 @@ function NoteGrid({
     <div className="note-grid-area">
       <div className="note-grid-header">
         <span className="note-grid-title">
-          {notes.length === 0 ? "No notes" : `${notes.length} note${notes.length !== 1 ? "s" : ""}`}
+          {loading ? "Loading notes..." : (notes.length === 0 ? "No notes" : `${notes.length} note${notes.length !== 1 ? "s" : ""}`)}
         </span>
       </div>
 
       <div className="note-grid">
-        {notes.length === 0 && (
+        {loading && Array.from({ length: 6 }).map((_, i) => (
+          <div key={`skeleton-${i}`} className="note-card c-grey" style={{ opacity: 0.5, animation: "pulse 1.5s infinite" }}>
+            <div className="note-card-header">
+              <div style={{ height: "18px", width: "60%", background: "var(--surface2)", borderRadius: "4px" }}></div>
+            </div>
+            <div className="note-card-body">
+              <div style={{ height: "12px", width: "90%", background: "var(--surface2)", borderRadius: "4px", marginBottom: "8px" }}></div>
+              <div style={{ height: "12px", width: "80%", background: "var(--surface2)", borderRadius: "4px", marginBottom: "8px" }}></div>
+              <div style={{ height: "12px", width: "40%", background: "var(--surface2)", borderRadius: "4px" }}></div>
+            </div>
+          </div>
+        ))}
+
+        {!loading && notes.length === 0 && (
           <div className="note-grid-empty">
             <div className="note-grid-empty-icon">📝</div>
             <h3>No notes yet</h3>
@@ -56,7 +70,7 @@ function NoteGrid({
           </div>
         )}
 
-        {notes.map((note) => {
+        {!loading && notes.map((note) => {
           const snippet = stripHtml(note.content);
           const expiry = formatExpiry(note.expiry);
           const color = cardColor(note.id);

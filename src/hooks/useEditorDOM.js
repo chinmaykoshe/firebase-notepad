@@ -31,7 +31,8 @@ export function useEditorDOM({
         .replace(/\son\w+="[^"]*"/gi, "")
         .replace(/\son\w+='[^']*'/gi, "")
         .trim();
-      editorRef.current.innerHTML = cleaned === "<br>" ? "" : cleaned;
+      const finalHtml = window.DOMPurify ? window.DOMPurify.sanitize(cleaned === "<br>" ? "" : cleaned) : (cleaned === "<br>" ? "" : cleaned);
+      editorRef.current.innerHTML = finalHtml;
     }
   }, [editorRef]);
 
@@ -49,7 +50,8 @@ export function useEditorDOM({
     if (!editor) return;
     editor.focus();
     const temp = document.createElement("div");
-    temp.innerHTML = html;
+    const safeHtml = window.DOMPurify ? window.DOMPurify.sanitize(html) : html;
+    temp.innerHTML = safeHtml;
     const fragment = document.createDocumentFragment();
     let lastNode = null;
     while (temp.firstChild) lastNode = fragment.appendChild(temp.firstChild);

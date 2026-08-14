@@ -1,3 +1,54 @@
+.worksheet-wrapper {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.ws-formula-bar {
+  display: flex;
+  align-items: center;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 4px 8px;
+  gap: 8px;
+}
+
+.ws-name-box {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  padding: 4px 8px;
+  font-family: var(--font-mono, monospace);
+  font-size: 13px;
+  min-width: 60px;
+  text-align: center;
+  border-radius: var(--r-xs);
+}
+
+.ws-fx {
+  font-family: Georgia, serif;
+  font-style: italic;
+  color: var(--text-dim);
+  font-weight: bold;
+  user-select: none;
+}
+
+.ws-formula-input {
+  flex: 1;
+  border: 1px solid var(--border);
+  border-radius: var(--r-xs);
+  padding: 4px 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+}
+.ws-formula-input:focus {
+  border-color: var(--accent);
+}
+
 .worksheet-container {
   flex: 1;
   overflow: auto;
@@ -36,6 +87,12 @@
   text-align: center;
   position: sticky;
   z-index: 10;
+  cursor: cell;
+}
+
+.worksheet-table th.selected-header {
+  background: var(--border);
+  color: var(--text);
 }
 
 .ws-header-rowcol {
@@ -44,6 +101,7 @@
   z-index: 20 !important;
   width: 40px;
   min-width: 40px;
+  cursor: crosshair !important;
 }
 
 .ws-header-col {
@@ -60,12 +118,18 @@
   position: relative;
   color: var(--text);
   padding: 0 4px;
+  cursor: cell;
 }
 
-.ws-cell.selected {
+.ws-cell.in-selection {
+  background: rgba(var(--accent-rgb, 100, 100, 255), 0.1);
+}
+
+.ws-cell.is-active {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
-  background: var(--accent-light, rgba(var(--accent-rgb), 0.1));
+  background: var(--surface);
+  z-index: 5;
 }
 
 .ws-input {
@@ -83,4 +147,32 @@
   padding: 0 4px;
   box-sizing: border-box;
   z-index: 5;
+}
+
+.ws-context-menu {
+  position: fixed;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-md);
+  border-radius: var(--r-sm);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  z-index: 9999;
+}
+
+.ws-context-menu button {
+  background: transparent;
+  border: none;
+  padding: 6px 16px;
+  text-align: left;
+  font-family: var(--font);
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+  border-radius: var(--r-xs);
+}
+
+.ws-context-menu button:hover {
+  background: var(--bg);
 }
