@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "./supabase.js";
 import { useNotesDB } from "./hooks/useNotesDB.js";
 import Sidebar from "./components/Sidebar.jsx";
@@ -10,6 +11,7 @@ import ImageGallery from "./components/ImageGallery.jsx";
 import AdminDashboard from "./components/AdminDashboard.jsx";
 import SiteNotice from "./components/SiteNotice.jsx";
 import LegalDialog from "./components/LegalDialog.jsx";
+import { parseFile } from "./utils/fileParser.js";
 
 const emptyDialog = {
   open: false,
@@ -175,11 +177,17 @@ function compressImage(file, maxWidth = 1200, quality = 0.7) {
 }
 
 function App() {
+  const { noteId } = useParams();
+  const navigate = useNavigate();
   const editorsRef = useRef({});
   const containerRef = useRef(null);
   const dialogResolver = useRef(null);
   const passwordResolver = useRef(null);
+  const fileImportRef = useRef(null);
   const pendingContentRef = useRef(""); // content waiting to be applied once editor mounts
+  const [dragCounter, setDragCounter] = useState(0);
+  const [parsingProgress, setParsingProgress] = useState(null);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [notes, setNotes] = useState([]);
   const [noteName, setNoteName] = useState("");
   const [noteNameManuallySet, setNoteNameManuallySet] = useState(false);
@@ -328,7 +336,9 @@ function App() {
       worksheets: typeof item.worksheets === "string" ? JSON.parse(item.worksheets) : (item.worksheets || []),
       expiry: item.expiry ? new Date(item.expiry) : null,
       password: item.has_password ? true : "",
+      updated_at: item.updated_at ? new Date(item.updated_at) : (item.created_at ? new Date(item.created_at) : new Date(0)),
     }));
+    loaded.sort((a, b) => b.updated_at - a.updated_at);
     setNotes(loaded);
     setLoadingNotes(false);
   }
@@ -369,6 +379,19 @@ function App() {
     return () => document.removeEventListener("fullscreenchange", update);
   }, []);
 
+  useEffect(() => {
+    if (noteId && notes.length > 0 && currentNoteId !== noteId) {
+      const target = notes.find(n => n.id === noteId);
+      if (target) {
+        openNote(target);
+      } else if (!notes.some(n => n.id === noteId)) {
+        supabase.from('notes').select('*').eq('id', noteId).single().then(({data}) => {
+          if (data) openNote(data);
+        });
+      }
+    }
+  }, [noteId, notes, currentNoteId]);
+
   function clearEditor() {
     if (editorsRef.current) {
       Object.values(editorsRef.current).forEach(editor => {
@@ -377,6 +400,7 @@ function App() {
     }
     setCurrentNoteId("");
     setCurrentNotePassword("");
+    navigate("/");
     setNoteName("");
     setNoteNameManuallySet(false);
     setAuthor(username);
@@ -477,7 +501,7 @@ function App() {
     const sheets = typeof noteData.worksheets === "string" ? JSON.parse(noteData.worksheets) : (noteData.worksheets || []);
     setWorksheets(sheets.map(ws => ({
       ...ws,
-      data: typeof ws.data === "string" ? JSON.parse(ws.data) : ws.data
+      data: (ws.type !== "note" && typeof ws.data === "string") ? JSON.parse(ws.data) : ws.data
     })));
 
     pendingContentRef.current = noteData.content || "";
@@ -493,6 +517,7 @@ function App() {
     setIsEditing(false);
     setMenuOpen(false);
     setShowEditor(true);
+    navigate(`/note/${encodeURIComponent(noteData.id)}`);
   }
 
   function askPassword(note, action) {
@@ -539,6 +564,12 @@ function App() {
       if (!id && updatedWorksheets.length > 0 && updatedWorksheets[0]?.data?.length > 0 && updatedWorksheets[0].data[0]?.length > 0) {
         id = updatedWorksheets[0].data[0][0]?.toString().trim();
         if (id) id = id.replace(/[^a-zA-Z0-9_\- ]/g, "").slice(0, 24).trim();
+      }
+
+      if (!id && mainContent.includes("<img")) {
+        id = `Image Note ${new Date().toLocaleTimeString()}`;
+      } else if (!id && updatedWorksheets.length > 0) {
+        id = `Worksheet ${new Date().toLocaleTimeString()}`;
       }
       
       if (!id) id = `Note ${new Date().toLocaleTimeString()}`;
@@ -592,8 +623,48 @@ function App() {
 
     setCurrentNoteId(id);
     setCurrentNotePassword(password.trim());
+    navigate(`/note/${encodeURIComponent(id)}`);
     await loadList();
     showToast(`Saved as "${id}"`);
+  }
+
+  async function handleFileImport(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setParsingProgress({ status: 'Starting', progress: 0 });
+      const result = await parseFile(file, setParsingProgress);
+      setParsingProgress(null);
+      
+      // If we are currently in grid view, create a new note for the file
+      if (!showEditor) {
+        clearEditor();
+        setShowEditor(true);
+        setNoteName(file.name.replace(/\.[^/.]+$/, "")); // remove extension
+        setNoteNameManuallySet(true);
+        if (result.type === 'html') {
+          pendingContentRef.current = result.content;
+        } else if (result.type === 'worksheet') {
+          const newWorksheets = result.sheets.map(s => ({
+            id: Date.now().toString() + Math.random().toString(36).substring(2, 7),
+            name: s.name,
+            data: s.data,
+            type: "worksheet"
+          }));
+          setWorksheets(newWorksheets);
+          setActiveTab(newWorksheets[0].id);
+        }
+      } else {
+        // We are already in an editor
+        await showAlert("Cannot open file in the same window. Please save or close the current note before opening a new file.", "Notice", "warning");
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Failed to parse file: " + err.message);
+      setParsingProgress(null);
+    } finally {
+      e.target.value = ""; // Reset file input
+    }
   }
 
   async function handleBack() {
@@ -1258,8 +1329,138 @@ function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [slashCmd.open]);
 
+  const handleGlobalDragEnter = (e) => {
+    e.preventDefault();
+    setDragCounter(prev => prev + 1);
+  };
+
+  const handleGlobalDragLeave = (e) => {
+    e.preventDefault();
+    setDragCounter(prev => Math.max(0, prev - 1));
+  };
+
   return (
-    <>
+    <div 
+      onDragEnter={handleGlobalDragEnter}
+      onDragLeave={handleGlobalDragLeave}
+      onDragOver={(e) => e.preventDefault()} 
+      onDrop={async (e) => { 
+        e.preventDefault(); 
+        setDragCounter(0);
+        const file = e.dataTransfer.files?.[0]; 
+        if (file) handleFileImport({ target: { files: [file], value: "" } }); 
+      }} 
+      style={{ display: "contents" }}
+    >
+      <input type="file" ref={fileImportRef} style={{ display: "none" }} onChange={handleFileImport} accept="*/*" />
+      {dragCounter > 0 && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: "rgba(180, 160, 50, 0.95)", backdropFilter: "blur(4px)",
+          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+          zIndex: 99999, color: "white", pointerEvents: "none"
+        }}>
+           <div style={{ position: "absolute", top: 60, left: 60, width: 80, height: 80, borderTop: "12px solid white", borderLeft: "12px solid white", borderTopLeftRadius: 32 }}></div>
+           <div style={{ position: "absolute", top: 60, right: 60, width: 80, height: 80, borderTop: "12px solid white", borderRight: "12px solid white", borderTopRightRadius: 32 }}></div>
+           <div style={{ position: "absolute", bottom: 60, left: 60, width: 80, height: 80, borderBottom: "12px solid white", borderLeft: "12px solid white", borderBottomLeftRadius: 32 }}></div>
+           <div style={{ position: "absolute", bottom: 60, right: 60, width: 80, height: 80, borderBottom: "12px solid white", borderRight: "12px solid white", borderBottomRightRadius: 32 }}></div>
+           <h1 style={{ fontSize: "5rem", margin: 0, fontWeight: 900, textShadow: "0 4px 20px rgba(0,0,0,0.3)" }}>Drop file anywhere</h1>
+        </div>
+      )}
+      {showImportModal && (
+        <div 
+          style={{
+            position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: "var(--surface)", 
+            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+            zIndex: 99999, color: "var(--text)", transition: "background-color 0.2s"
+          }}
+          onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.backgroundColor = "var(--surface2)"; }}
+          onDragLeave={(e) => { e.currentTarget.style.backgroundColor = "var(--surface)"; }}
+          onDrop={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            e.currentTarget.style.backgroundColor = "var(--surface)";
+            const file = e.dataTransfer.files?.[0]; 
+            if (file) handleFileImport({ target: { files: [file], value: "" } });
+            setShowImportModal(false);
+          }}
+        >
+          {/* Close button */}
+          <button 
+            style={{ position: "absolute", top: 32, right: 32, background: "transparent", border: "none", color: "var(--text)", cursor: "pointer", padding: "8px", zIndex: 10 }}
+            onClick={() => setShowImportModal(false)}
+          >
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+
+          {/* Large corner brackets mimicking remove.bg */}
+          <div style={{ position: "absolute", top: 40, left: 40, width: 80, height: 80, borderTop: "8px solid var(--accent)", borderLeft: "8px solid var(--accent)", borderTopLeftRadius: 32, pointerEvents: "none" }}></div>
+          <div style={{ position: "absolute", top: 40, right: 40, width: 80, height: 80, borderTop: "8px solid var(--accent)", borderRight: "8px solid var(--accent)", borderTopRightRadius: 32, pointerEvents: "none" }}></div>
+          <div style={{ position: "absolute", bottom: 40, left: 40, width: 80, height: 80, borderBottom: "8px solid var(--accent)", borderLeft: "8px solid var(--accent)", borderBottomLeftRadius: 32, pointerEvents: "none" }}></div>
+          <div style={{ position: "absolute", bottom: 40, right: 40, width: 80, height: 80, borderBottom: "8px solid var(--accent)", borderRight: "8px solid var(--accent)", borderBottomRightRadius: 32, pointerEvents: "none" }}></div>
+          
+          <h1 style={{ fontSize: "2.5rem", margin: "0 0 32px 0", fontWeight: 700, color: "var(--text-dim)" }}>Upload a file to extract text</h1>
+          
+          <button
+            style={{
+              padding: "16px 48px",
+              borderRadius: "100px",
+              background: "var(--accent)",
+              color: "#fff",
+              border: "none",
+              fontWeight: 700,
+              cursor: "pointer",
+              fontSize: "1.4rem",
+              boxShadow: "0 8px 24px rgba(0,0,0,0.2)",
+              transition: "transform 0.1s"
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.transform = "scale(1.05)"}
+            onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
+            onClick={() => { fileImportRef.current?.click(); setShowImportModal(false); }}
+          >
+            Upload File
+          </button>
+          
+          <h2 style={{ fontSize: "4.5rem", margin: "48px 0 16px 0", fontWeight: 800 }}>Drop file anywhere</h2>
+          <p style={{ fontSize: "1.2rem", color: "var(--text-dim)", margin: 0 }}>or click Upload File to browse</p>
+        </div>
+      )}
+      {parsingProgress && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: "rgba(0,0,0,0.8)", backdropFilter: "blur(6px)",
+          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+          zIndex: 999999, color: "var(--text)"
+        }}>
+          <div style={{
+            background: "var(--surface)", border: "1px solid var(--border)",
+            borderRadius: "16px", padding: "40px",
+            boxShadow: "0 20px 40px rgba(0,0,0,0.4)",
+            display: "flex", flexDirection: "column", alignItems: "center", gap: "24px",
+            width: "90%", maxWidth: "400px", textAlign: "center"
+          }}>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="spin-anim" style={{ animation: "spin 2s linear infinite" }}>
+              <line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line>
+            </svg>
+            <style>{`@keyframes spin { 100% { transform: rotate(360deg); } }`}</style>
+            <div>
+              <h3 style={{ margin: "0 0 8px 0", fontSize: "1.4rem" }}>{parsingProgress.status}</h3>
+              <p style={{ margin: 0, color: "var(--text-dim)" }}>Please wait while we process your file.</p>
+            </div>
+            
+            <div style={{ width: "100%", height: "8px", background: "var(--bg)", borderRadius: "4px", overflow: "hidden" }}>
+              <div style={{ 
+                height: "100%", 
+                background: "var(--accent)", 
+                width: `${parsingProgress.progress}%`,
+                transition: "width 0.2s ease"
+              }}></div>
+            </div>
+            <p style={{ margin: 0, fontWeight: 700, alignSelf: "flex-end" }}>{parsingProgress.progress}%</p>
+          </div>
+        </div>
+      )}
       <div id="overlay" onClick={() => setMenuOpen(false)} />
       {toast && <div className="toast-notification">{toast}</div>}
       {/* ── Admin Mode (Full-screen dedicated console) ── */}
@@ -1284,6 +1485,7 @@ function App() {
             onGallery={() => { setMenuOpen(false); setViewMode("gallery"); }}
             onToggleTheme={setTheme}
             onOpenLegal={() => { setMenuOpen(false); setLegalDialog({ open: true, type: "legal" }); }}
+            onImportFile={() => { setMenuOpen(false); setShowImportModal(true); }}
           />
 
           {/* ── HOME: Note grid or Gallery ── */}
@@ -1344,7 +1546,8 @@ function App() {
             </div>
 
             {/* Right — new note shortcut */}
-            <div className="right-group" style={{ display: mobileSearchOpen ? "none" : "flex", justifyContent: "flex-end", alignItems: "center" }}>
+            <div className="right-group" style={{ display: mobileSearchOpen ? "none" : "flex", justifyContent: "flex-end", alignItems: "center", gap: "8px" }}>
+              <input type="file" ref={fileImportRef} style={{ display: "none" }} onChange={handleFileImport} accept=".csv,.xlsx,.xls,.docx,.pdf,.txt,image/*" />
               <button
                 className="note-grid-new"
                 onClick={() => { clearEditor(); setShowEditor(true); }}
@@ -1417,6 +1620,7 @@ function App() {
         onBack={handleBack}
         onFormat={handleFormat}
         onToggleFormatToolbar={() => setFormatToolbarOpen((value) => !value)}
+        onImportFile={() => setShowImportModal(true)}
       />
           )}
         </>
@@ -1480,7 +1684,7 @@ function App() {
           ))}
         </div>
       )}
-    </>
+    </div>
   );
 }
 

@@ -48,6 +48,7 @@ function Editor({
     activeTab,
     setActiveTab,
     onInsertImage,
+    onImportFile,
   }) {
   const [selectedImg, setSelectedImg] = useState(null);
   const [zoomLevel, setZoomLevel] = useState(1);
@@ -162,6 +163,7 @@ function Editor({
 
           {/* Desktop secondary actions */}
           <div className="desktop-actions">
+            <button className="icon-btn toolbar-btn" onClick={onImportFile} title="Import File">Import</button>
             <button className="icon-btn toolbar-btn" onClick={onExportTXT} title="Export as TXT">TXT</button>
             <button className="icon-btn toolbar-btn" onClick={onExportPDF} title="Export as PDF">PDF</button>
             <button className="icon-btn toolbar-btn" id="extendBtn" onClick={onExtendNote} title="Extend note lifetime by 24h">Extend</button>
@@ -189,6 +191,7 @@ function Editor({
         />
 
         <div className={`export-menu ${exportOpen ? "open" : ""}`} id="exportMenu">
+          <button className="export-menu-item" onClick={onImportFile}>Import File</button>
           <button className="export-menu-item" onClick={onExportTXT}>Export TXT</button>
           <button className="export-menu-item" onClick={onExportPDF}>Export PDF</button>
           <button className="export-menu-item" onClick={onExtendNote}>Extend 24h</button>
@@ -410,7 +413,7 @@ function Editor({
               contentEditable={isEditing}
               suppressContentEditableWarning
               data-placeholder="Start typing... or type / for commands"
-              className={isEditing ? "" : "readonly"}
+              className={`note-content ${isEditing ? "" : "readonly"}`}
               style={{ fontSize: `${zoomLevel}rem`, touchAction: "pan-x pan-y" }}
               onInput={(e) => {
                 if (selectedImg && !selectedImg.isConnected) setSelectedImg(null);
@@ -451,8 +454,9 @@ function Editor({
                 contentEditable={isEditing}
                 suppressContentEditableWarning
                 data-placeholder="Start typing... or type / for commands"
-                className={isEditing ? "" : "readonly"}
+                className={`note-content ${isEditing ? "" : "readonly"}`}
                 style={{ fontSize: `${zoomLevel}rem`, touchAction: "pan-x pan-y" }}
+                dangerouslySetInnerHTML={{ __html: note.data || "" }}
                 onInput={(e) => {
                   if (selectedImg && !selectedImg.isConnected) setSelectedImg(null);
                   onContentInput(e);

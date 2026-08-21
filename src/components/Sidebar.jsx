@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 
-function Sidebar({ notes = [], currentNoteId, showEditor, viewMode, theme, username, onSetUsername, onNewNote, onHome, onOpenNote, onGallery, onAdmin, onToggleTheme, onOpenLegal }) {
+function Sidebar({ notes = [], currentNoteId, showEditor, viewMode, theme, username, onSetUsername, onNewNote, onImportFile, onHome, onOpenNote, onGallery, onAdmin, onToggleTheme, onOpenLegal }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const [notesListOpen, setNotesListOpen] = useState(false);
@@ -117,6 +117,15 @@ function Sidebar({ notes = [], currentNoteId, showEditor, viewMode, theme, usern
             <path d="M5 12h14"/>
           </svg>
           New note
+        </button>
+
+        <button className="nav-item" onClick={onImportFile}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="17 8 12 3 7 8"></polyline>
+            <line x1="12" y1="3" x2="12" y2="15"></line>
+          </svg>
+          Import file
         </button>
 
         <button className={`nav-item ${viewMode === "gallery" ? 'active' : ''}`} onClick={onGallery}>

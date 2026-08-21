@@ -126,7 +126,7 @@ export default function ImageResizer({ imgElement, containerRef, isEditing, onDe
   }, [imgElement, containerRef, isEditing]);
 
   const triggerInput = () => {
-    const noteContent = containerRef.current?.querySelector("#noteContent");
+    const noteContent = containerRef.current?.querySelector(".note-content");
     if (noteContent) noteContent.dispatchEvent(new Event("input", { bubbles: true }));
   };
 
