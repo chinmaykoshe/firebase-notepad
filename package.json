@@ -17,7 +17,7 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "Firebase Notepad - A rich-text notepad web app backed by Firebase Firestore",
+  "description": "Supabase Notepad - A rich-text notepad web app backed by Supabase",
   "dependencies": {
     "@capacitor/android": "^7.0.0",
     "@capacitor/cli": "^7.0.0",

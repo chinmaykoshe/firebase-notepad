@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://supabase-notepad.vercel.app/sitemap.xml

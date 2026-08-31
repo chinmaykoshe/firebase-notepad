@@ -11,6 +11,7 @@ import ImageGallery from "./components/ImageGallery.jsx";
 import AdminDashboard from "./components/AdminDashboard.jsx";
 import SiteNotice from "./components/SiteNotice.jsx";
 import LegalDialog from "./components/LegalDialog.jsx";
+import UserOnboardingModal from "./components/UserOnboardingModal.jsx";
 import { parseFile } from "./utils/fileParser.js";
 
 const emptyDialog = {
@@ -200,7 +201,7 @@ function App() {
   const [activeTab, setActiveTab] = useState("text"); // "text" or sheet id
   const [username, setUsernameState] = useState(getOrCreateUsername);
   const [theme, setTheme] = useState(() => localStorage.getItem("notepad-theme") || "");
-  const [showEditor, setShowEditor] = useState(false);
+  const [showEditor, setShowEditor] = useState(() => Boolean(noteId));
   const [viewMode, setViewMode] = useState("grid"); // "grid" | "gallery" | "admin"
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchText, setSearchText] = useState("");
@@ -220,7 +221,23 @@ function App() {
   const [legalDialog, setLegalDialog] = useState({ open: false, type: "" });
   const [slashCmd, setSlashCmd] = useState({ open: false, query: "", anchor: null });
   const [toast, setToast] = useState("");
+  const [showOnboarding, setShowOnboarding] = useState(() => {
+    try {
+      return !localStorage.getItem("notepad-onboarded");
+    } catch {
+      return false;
+    }
+  });
   const slashMenuRef = useRef(null);
+
+  // --- Dynamic Title ---
+  useEffect(() => {
+    if (showEditor && noteName) {
+      document.title = `${noteName} - Supabase Notepad`;
+    } else {
+      document.title = "Supabase Notepad";
+    }
+  }, [showEditor, noteName]);
 
   // --- Admin Check ---
   useEffect(() => {
@@ -251,10 +268,50 @@ function App() {
     setTimeout(() => setToast(""), 3000);
   }
 
+  async function handleShareNote(targetNote = null) {
+    const idToShare = targetNote?.id || currentNoteId || noteName.trim();
+    if (!idToShare) {
+      showToast("Please open or save a note first to share its link!");
+      return;
+    }
+    const shareUrl = `${window.location.origin}/note/${encodeURIComponent(idToShare)}`;
+    
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(shareUrl);
+        showToast("Direct note link copied to clipboard! 📋");
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = shareUrl;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+        showToast("Direct note link copied to clipboard! 📋");
+      }
+    } catch (e) {
+      prompt("Copy this direct note link:", shareUrl);
+    }
+  }
+
   /** Persist username change */
   const handleSetUsername = (name) => {
     saveUsername(name);
     setUsernameState(name);
+    try { localStorage.setItem("notepad-onboarded", "1"); } catch {}
+  };
+
+  const handleCompleteOnboarding = (chosenName) => {
+    const finalName = chosenName.trim() || username;
+    handleSetUsername(finalName);
+    if (!author || author === username) {
+      setAuthor(finalName);
+    }
+    setShowOnboarding(false);
+    showToast(`Welcome, ${finalName}! 🎉`);
   };
 
   const filteredNotes = useMemo(() => {
@@ -379,18 +436,44 @@ function App() {
     return () => document.removeEventListener("fullscreenchange", update);
   }, []);
 
+  // Direct note route navigation / initial load
   useEffect(() => {
-    if (noteId && notes.length > 0 && currentNoteId !== noteId) {
-      const target = notes.find(n => n.id === noteId);
+    if (!noteId) {
+      if (currentNoteId && !showEditor) {
+        clearEditor();
+      }
+      return;
+    }
+
+    if (noteId && currentNoteId !== noteId) {
+      setShowEditor(true);
+      const target = notes.find((n) => n.id === noteId);
       if (target) {
         openNote(target);
-      } else if (!notes.some(n => n.id === noteId)) {
-        supabase.from('notes').select('*').eq('id', noteId).single().then(({data}) => {
-          if (data) openNote(data);
-        });
+      } else {
+        supabase
+          .from("notes")
+          .select("*")
+          .eq("id", noteId)
+          .single()
+          .then(({ data, error }) => {
+            if (data) {
+              openNote(data);
+            } else {
+              showToast(`Note "${noteId}" not found or expired.`);
+              setShowEditor(false);
+              clearEditor();
+            }
+          })
+          .catch((err) => {
+            console.error("Direct note load error:", err);
+            showToast(`Error opening note "${noteId}"`);
+            setShowEditor(false);
+            clearEditor();
+          });
       }
     }
-  }, [noteId, notes, currentNoteId]);
+  }, [noteId, currentNoteId, notes]);
 
   function clearEditor() {
     if (editorsRef.current) {
@@ -1570,6 +1653,7 @@ function App() {
             onOpenNote={openNote}
             onDeleteNote={deleteNote}
             onToggleNoteMenu={setOpenMenuId}
+            onShareNote={handleShareNote}
           />
         </div>
       ) : (
@@ -1602,6 +1686,7 @@ function App() {
         onExportTXT={exportTXT}
         onExportPDF={exportPDF}
         onCopyAll={copyAllText}
+        onShareNote={handleShareNote}
         onDeleteOpenNote={deleteOpenNote}
         onExtendNote={extendNoteLife}
         onInsertTable={handleInsertTable}
@@ -1651,6 +1736,11 @@ function App() {
       <LegalDialog
         isOpen={legalDialog.open}
         onClose={() => setLegalDialog({ open: false, type: "" })}
+      />
+      <UserOnboardingModal
+        isOpen={showOnboarding}
+        initialUsername={username}
+        onSave={handleCompleteOnboarding}
       />
 
       {/* Notion-style slash command menu */}

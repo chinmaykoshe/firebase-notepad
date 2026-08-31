@@ -26,6 +26,7 @@ function Editor({
     onExportTXT,
     onExportPDF,
     onCopyAll,
+    onShareNote,
     onDeleteOpenNote,
     onExtendNote,
     onInsertTable,
@@ -154,9 +155,21 @@ function Editor({
               </>
             )}
           </button>
+
+          {/* Share */}
+          <button className="icon-btn toolbar-btn" id="shareToggle" title="Share direct note link" onClick={onShareNote}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="18" cy="5" r="3"></circle>
+              <circle cx="6" cy="12" r="3"></circle>
+              <circle cx="18" cy="19" r="3"></circle>
+              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+            </svg>
+            <span className="desktop-label">Share</span>
+          </button>
           
           <button className="icon-btn toolbar-btn" id="copyToggle" title="Copy to clipboard" onClick={onCopyAll}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
               <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
             </svg>
           </button>
@@ -168,6 +181,7 @@ function Editor({
             <button className="icon-btn toolbar-btn" onClick={onExportPDF} title="Export as PDF">PDF</button>
             <button className="icon-btn toolbar-btn" id="extendBtn" onClick={onExtendNote} title="Extend note lifetime by 24h">Extend</button>
             <button className="icon-btn toolbar-btn" onClick={onInsertTable} title="Insert table">Table</button>
+            <button className="icon-btn toolbar-btn" onClick={onShareNote} title="Share direct link">Share</button>
             <button className="icon-btn danger-action" onClick={onDeleteOpenNote} title="Delete this note">Delete</button>
           </div>
 
@@ -191,6 +205,7 @@ function Editor({
         />
 
         <div className={`export-menu ${exportOpen ? "open" : ""}`} id="exportMenu">
+          <button className="export-menu-item" onClick={onShareNote}>Share Note Link</button>
           <button className="export-menu-item" onClick={onImportFile}>Import File</button>
           <button className="export-menu-item" onClick={onExportTXT}>Export TXT</button>
           <button className="export-menu-item" onClick={onExportPDF}>Export PDF</button>
@@ -437,7 +452,7 @@ function Editor({
             </div>
 
             <button className="icon-btn read-fs-btn" title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"} onClick={onToggleFullscreen}>
-              <img src={isFullscreen ? "/collapse.svg" : "/expand.svg"} alt="" />
+              <img src={isFullscreen ? "/collapse.svg" : "/expand.svg"} alt={isFullscreen ? "Collapse fullscreen" : "Expand fullscreen"} />
             </button>
           </div>
 
@@ -479,7 +494,7 @@ function Editor({
               </div>
 
               <button className="icon-btn read-fs-btn" title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"} onClick={onToggleFullscreen}>
-                <img src={isFullscreen ? "/collapse.svg" : "/expand.svg"} alt="" />
+                <img src={isFullscreen ? "/collapse.svg" : "/expand.svg"} alt={isFullscreen ? "Collapse fullscreen" : "Expand fullscreen"} />
               </button>
             </div>
           ))}
