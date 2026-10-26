@@ -8,6 +8,7 @@ import NoteGrid from "./components/NoteGrid.jsx";
 import PasswordDialog from "./components/PasswordDialog.jsx";
 import CustomDialog from "./components/CustomDialog.jsx";
 import ImageGallery from "./components/ImageGallery.jsx";
+import DriveView from "./components/DriveView.jsx";
 import AdminDashboard from "./components/AdminDashboard.jsx";
 import SiteNotice from "./components/SiteNotice.jsx";
 import LegalDialog from "./components/LegalDialog.jsx";
@@ -1566,16 +1567,22 @@ function App() {
             onHome={() => { setMenuOpen(false); setViewMode("grid"); handleBack(); }}
             onOpenNote={(note) => { setMenuOpen(false); setViewMode("grid"); openNote(note); }}
             onGallery={() => { setMenuOpen(false); setViewMode("gallery"); }}
+            onDrive={() => { setMenuOpen(false); setViewMode("drive"); }}
             onToggleTheme={setTheme}
             onOpenLegal={() => { setMenuOpen(false); setLegalDialog({ open: true, type: "legal" }); }}
             onImportFile={() => { setMenuOpen(false); setShowImportModal(true); }}
           />
 
-          {/* ── HOME: Note grid or Gallery ── */}
+          {/* ── HOME: Note grid, Gallery, or Drive ── */}
           {viewMode === "gallery" ? (
             <ImageGallery 
               images={getPublicImages()} 
               onHome={() => setViewMode("grid")}
+            />
+          ) : viewMode === "drive" ? (
+            <DriveView 
+              onHome={() => setViewMode("grid")}
+              onToast={(msg) => showToast(msg)}
             />
           ) : !showEditor ? (
         <div id="main" style={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
