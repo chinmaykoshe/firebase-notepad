@@ -14,6 +14,7 @@ import SiteNotice from "./components/SiteNotice.jsx";
 import LegalDialog from "./components/LegalDialog.jsx";
 import UserOnboardingModal from "./components/UserOnboardingModal.jsx";
 import { parseFile } from "./utils/fileParser.js";
+import { getOverallCloudUsage, OVERALL_CLOUD_STORAGE_CAP, MAX_FILE_SIZE } from "./utils/cloudStorage.js";
 
 const emptyDialog = {
   open: false,
@@ -992,6 +993,17 @@ function App() {
     if (imageFiles.length === 0) return;
     
     imageFiles.forEach(async (originalFile) => {
+      if (originalFile.size > MAX_FILE_SIZE) {
+        showToast("Image exceeds 10 MB per-file limit");
+        return;
+      }
+
+      const usage = await getOverallCloudUsage();
+      if (usage.totalCloudBytes + originalFile.size > OVERALL_CLOUD_STORAGE_CAP) {
+        showToast("Cloud storage quota exceeded (45 MB total limit reached)!");
+        return;
+      }
+
       const tempId = `img-upload-${Date.now()}-${Math.random().toString(36).substring(7)}`;
       const uploadingSvg = `data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150'%3E%3Crect width='150' height='150' fill='%23ddd'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='16' fill='%23555'%3EUploading...%3C/text%3E%3C/svg%3E`;
       const failedSvg = `data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150'%3E%3Crect width='150' height='150' fill='%23fee'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='16' fill='%23c00'%3EUpload Failed%3C/text%3E%3C/svg%3E`;

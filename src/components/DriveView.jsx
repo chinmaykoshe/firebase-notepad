@@ -1,18 +1,13 @@
 import React, { useState, useEffect, useRef } from "react";
 import { supabase } from "../supabase";
+import { 
+  MAX_FILE_SIZE, 
+  OVERALL_CLOUD_STORAGE_CAP, 
+  formatBytes, 
+  getOverallCloudUsage 
+} from "../utils/cloudStorage.js";
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB per file
-const MAX_TOTAL_STORAGE = 45 * 1024 * 1024; // 45 MB total drive capacity
 const DRIVE_FOLDER = "drive";
-
-function formatBytes(bytes, decimals = 1) {
-  if (!bytes || bytes === 0) return "0 B";
-  const k = 1024;
-  const dm = decimals < 0 ? 0 : decimals;
-  const sizes = ["B", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
-}
 
 function getFileIcon(name = "") {
   const ext = name.split(".").pop().toLowerCase();
@@ -32,7 +27,6 @@ function getFileIcon(name = "") {
         <polyline points="14 2 14 8 20 8"/>
         <line x1="16" y1="13" x2="8" y2="13"/>
         <line x1="16" y1="17" x2="8" y2="17"/>
-        <polyline points="10 9 9 9 8 9"/>
       </svg>
     );
   }
@@ -55,6 +49,13 @@ function getFileIcon(name = "") {
 
 export default function DriveView({ onHome, onToast }) {
   const [files, setFiles] = useState([]);
+  const [cloudUsage, setCloudUsage] = useState({
+    totalCloudBytes: 0,
+    driveFilesBytes: 0,
+    rootMediaBytes: 0,
+    dbNotesBytes: 0,
+    availableBytes: OVERALL_CLOUD_STORAGE_CAP
+  });
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
@@ -63,34 +64,31 @@ export default function DriveView({ onHome, onToast }) {
   const fileInputRef = useRef(null);
 
   useEffect(() => {
-    fetchFiles();
+    refreshData();
   }, []);
 
-  async function fetchFiles() {
+  async function refreshData() {
     setLoading(true);
     try {
-      const { data, error } = await supabase.storage.from("images").list(DRIVE_FOLDER, {
-        limit: 100,
-        sortBy: { column: "created_at", order: "desc" }
-      });
-      if (error) throw error;
-      setFiles((data || []).filter(f => f.name && f.name !== ".emptyFolderPlaceholder"));
+      const usage = await getOverallCloudUsage();
+      setCloudUsage(usage);
+      setFiles(usage.driveFiles || []);
     } catch (err) {
-      console.error("Failed to load drive files:", err);
-      onToast?.("Failed to load Drive files: " + (err.message || "Unknown error"));
+      console.error("Failed to load cloud drive usage:", err);
+      onToast?.("Failed to calculate cloud usage");
     } finally {
       setLoading(false);
     }
   }
 
-  const totalUsedBytes = files.reduce((acc, f) => acc + (f.metadata?.size || 0), 0);
-  const usedPercentage = Math.min(100, (totalUsedBytes / MAX_TOTAL_STORAGE) * 100);
+  const overallUsedBytes = cloudUsage.totalCloudBytes;
+  const usedPercentage = Math.min(100, (overallUsedBytes / OVERALL_CLOUD_STORAGE_CAP) * 100);
 
   async function handleUpload(selectedFiles) {
     if (!selectedFiles || selectedFiles.length === 0) return;
     const fileList = Array.from(selectedFiles);
 
-    // Check individual file limit
+    // 1. Check individual file size limit (max 10 MB per file)
     for (const file of fileList) {
       if (file.size > MAX_FILE_SIZE) {
         onToast?.(`"${file.name}" is ${formatBytes(file.size)}. Max allowed size per file is 10 MB.`);
@@ -98,10 +96,13 @@ export default function DriveView({ onHome, onToast }) {
       }
     }
 
-    // Check overall drive storage quota
+    // 2. Refresh usage & enforce strict 45 MB overall cloud data ceiling
+    const latestUsage = await getOverallCloudUsage();
     const incomingBytes = fileList.reduce((acc, f) => acc + f.size, 0);
-    if (totalUsedBytes + incomingBytes > MAX_TOTAL_STORAGE) {
-      onToast?.(`Upload exceeds total drive capacity (${formatBytes(totalUsedBytes)} used of 45 MB). Please free up space.`);
+
+    if (latestUsage.totalCloudBytes + incomingBytes > OVERALL_CLOUD_STORAGE_CAP) {
+      const currentUsed = formatBytes(latestUsage.totalCloudBytes);
+      onToast?.(`Upload blocked! Total cloud data footprint would exceed the 45 MB limit (${currentUsed} currently used).`);
       return;
     }
 
@@ -126,19 +127,20 @@ export default function DriveView({ onHome, onToast }) {
 
     setUploading(false);
     if (successCount > 0) {
-      onToast?.(`Uploaded ${successCount} file(s) to Drive!`);
-      await fetchFiles();
+      onToast?.(`Uploaded ${successCount} file(s) to Cloud Drive!`);
+      await refreshData();
     }
   }
 
   async function handleDelete(fileName) {
-    if (!window.confirm(`Delete "${fileName}" permanently from Drive?`)) return;
+    if (!window.confirm(`Delete "${fileName}" permanently from Cloud Drive?`)) return;
     try {
       const { error } = await supabase.storage.from("images").remove([`${DRIVE_FOLDER}/${fileName}`]);
       if (error) throw error;
-      onToast?.("File deleted from Drive.");
+      onToast?.("File deleted from Cloud Drive.");
       setFiles(prev => prev.filter(f => f.name !== fileName));
       if (previewFile?.name === fileName) setPreviewFile(null);
+      await refreshData();
     } catch (err) {
       console.error("Delete error:", err);
       onToast?.("Failed to delete file: " + err.message);
@@ -177,7 +179,7 @@ export default function DriveView({ onHome, onToast }) {
           <div>
             <h2 style={{ margin: 0, fontSize: "20px", fontWeight: 700, letterSpacing: "-0.02em" }}>Cloud Drive</h2>
             <p style={{ margin: 0, fontSize: "12px", color: "var(--text-dim)" }}>
-              Shareable cloud storage • Max 10 MB/file • 45 MB total limit
+              Shareable cloud storage • Max 10 MB per file • <strong>Strict 45 MB total cloud limit</strong>
             </p>
           </div>
         </div>
@@ -225,13 +227,13 @@ export default function DriveView({ onHome, onToast }) {
         gap: "10px",
         boxShadow: "var(--shadow-sm)"
       }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "13px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "13px", flexWrap: "wrap", gap: "6px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", fontWeight: 600 }}>
-            <span>💾</span>
-            <span>Drive Storage Usage</span>
+            <span>🌐</span>
+            <span>Overall Cloud Storage Footprint</span>
           </div>
           <div style={{ color: "var(--text-dim)" }}>
-            <strong style={{ color: "var(--text)" }}>{formatBytes(totalUsedBytes)}</strong> used of 45 MB ({usedPercentage.toFixed(1)}%)
+            <strong style={{ color: "var(--text)" }}>{formatBytes(overallUsedBytes)}</strong> used of 45 MB ({usedPercentage.toFixed(1)}%)
           </div>
         </div>
 
@@ -247,15 +249,20 @@ export default function DriveView({ onHome, onToast }) {
           <div style={{
             height: "100%",
             width: `${usedPercentage}%`,
-            background: usedPercentage > 90 ? "#ef4444" : usedPercentage > 70 ? "#f59e0b" : "var(--accent)",
+            background: usedPercentage > 90 ? "#ef4444" : usedPercentage > 75 ? "#f59e0b" : "var(--accent)",
             borderRadius: "999px",
             transition: "width 0.3s ease"
           }} />
         </div>
 
-        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "var(--text-dim)" }}>
-          <span>Free space: {formatBytes(Math.max(0, MAX_TOTAL_STORAGE - totalUsedBytes))}</span>
-          <span>{files.length} file{files.length === 1 ? "" : "s"} stored</span>
+        {/* Breakdown of all cloud data */}
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "var(--text-dim)", flexWrap: "wrap", gap: "6px" }}>
+          <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+            <span>📁 Drive: <strong>{formatBytes(cloudUsage.driveFilesBytes)}</strong></span>
+            <span>🖼️ Uploaded Media: <strong>{formatBytes(cloudUsage.rootMediaBytes)}</strong></span>
+            <span>📝 Notes DB: <strong>{formatBytes(cloudUsage.dbNotesBytes)}</strong></span>
+          </div>
+          <span>Remaining: <strong style={{ color: "var(--text)" }}>{formatBytes(Math.max(0, OVERALL_CLOUD_STORAGE_CAP - overallUsedBytes))}</strong></span>
         </div>
       </section>
 
@@ -290,7 +297,7 @@ export default function DriveView({ onHome, onToast }) {
             Drop files here to upload or <span style={{ color: "var(--accent)", textDecoration: "underline" }}>browse</span>
           </div>
           <div style={{ fontSize: "12px" }}>
-            Max 10 MB per file • Instant public sharing link generated
+            Max 10 MB per file • Overall cloud ceiling 45 MB • Instant public share links
           </div>
         </div>
       </section>
@@ -298,7 +305,7 @@ export default function DriveView({ onHome, onToast }) {
       {/* Files Filter & List */}
       <section style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", gap: "12px", flexWrap: "wrap" }}>
-          <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 600 }}>Stored Files</h3>
+          <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 600 }}>Drive Files ({filteredFiles.length})</h3>
           <input 
             type="text" 
             placeholder="Search files..." 
@@ -318,7 +325,7 @@ export default function DriveView({ onHome, onToast }) {
 
         {loading ? (
           <div style={{ padding: "40px", textAlign: "center", color: "var(--text-dim)" }}>
-            Loading Drive files...
+            Calculating overall cloud storage & loading Drive files...
           </div>
         ) : filteredFiles.length === 0 ? (
           <div style={{
