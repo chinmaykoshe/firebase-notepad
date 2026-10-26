@@ -9,6 +9,34 @@ import {
 
 const DRIVE_FOLDER = "drive";
 
+// Fast SHA-256 hash using Web Crypto API
+async function sha256(text) {
+  const enc = new TextEncoder().encode(text);
+  const buf = await crypto.subtle.digest("SHA-256", enc);
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("").substring(0, 16);
+}
+
+// Encode filename format:
+// Public:  `P_<timestamp>_<cleanName>`
+// Lock:    `L_<passHash16>_<timestamp>_<cleanName>`
+function parseDriveFileName(storedName) {
+  const parts = storedName.split("_");
+  if (parts[0] === "L" && parts.length >= 4) {
+    const passHash = parts[1];
+    const timestamp = parts[2];
+    const originalName = parts.slice(3).join("_");
+    return { isLocked: true, passHash, timestamp, originalName, storedName };
+  }
+  if (parts[0] === "P" && parts.length >= 3) {
+    const timestamp = parts[1];
+    const originalName = parts.slice(2).join("_");
+    return { isLocked: false, passHash: null, timestamp, originalName, storedName };
+  }
+  // Fallback for older uploaded files
+  const clean = storedName.replace(/^\d+_/, "");
+  return { isLocked: false, passHash: null, timestamp: null, originalName: clean, storedName };
+}
+
 function getFileIcon(name = "") {
   const ext = name.split(".").pop().toLowerCase();
   if (["png", "jpg", "jpeg", "gif", "webp", "svg"].includes(ext)) {
@@ -59,9 +87,36 @@ export default function DriveView({ onHome, onToast }) {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
-  const [previewFile, setPreviewFile] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const fileInputRef = useRef(null);
+
+  // Upload modal state (with optional password protection)
+  const [uploadModal, setUploadModal] = useState({
+    open: false,
+    files: [],
+    password: "",
+    isPasswordProtected: false
+  });
+
+  // Password verification modal for Download or Delete
+  const [authDialog, setAuthDialog] = useState({
+    open: false,
+    fileParsed: null,
+    action: "", // 'download' | 'delete' | 'preview'
+    password: "",
+    error: ""
+  });
+
+  // Sharable link modal (shows full link + auto-copied feedback)
+  const [shareModal, setShareModal] = useState({
+    open: false,
+    url: "",
+    fileName: "",
+    isLocked: false
+  });
+
+  // Preview modal
+  const [previewFile, setPreviewFile] = useState(null);
 
   useEffect(() => {
     refreshData();
@@ -84,35 +139,56 @@ export default function DriveView({ onHome, onToast }) {
   const overallUsedBytes = cloudUsage.totalCloudBytes;
   const usedPercentage = Math.min(100, (overallUsedBytes / OVERALL_CLOUD_STORAGE_CAP) * 100);
 
-  async function handleUpload(selectedFiles) {
+  function handleFileSelection(selectedFiles) {
     if (!selectedFiles || selectedFiles.length === 0) return;
     const fileList = Array.from(selectedFiles);
 
-    // 1. Check individual file size limit (max 10 MB per file)
+    // Validate 10 MB per-file rule immediately
     for (const file of fileList) {
       if (file.size > MAX_FILE_SIZE) {
-        onToast?.(`"${file.name}" is ${formatBytes(file.size)}. Max allowed size per file is 10 MB.`);
+        onToast?.(`"${file.name}" is ${formatBytes(file.size)}. Max size is 10 MB per file.`);
         return;
       }
     }
 
-    // 2. Refresh usage & enforce strict 45 MB overall cloud data ceiling
-    const latestUsage = await getOverallCloudUsage();
+    // Validate 45 MB total cloud storage ceiling
     const incomingBytes = fileList.reduce((acc, f) => acc + f.size, 0);
-
-    if (latestUsage.totalCloudBytes + incomingBytes > OVERALL_CLOUD_STORAGE_CAP) {
-      const currentUsed = formatBytes(latestUsage.totalCloudBytes);
-      onToast?.(`Upload blocked! Total cloud data footprint would exceed the 45 MB limit (${currentUsed} currently used).`);
+    if (overallUsedBytes + incomingBytes > OVERALL_CLOUD_STORAGE_CAP) {
+      onToast?.(`Upload blocked! Overall cloud storage would exceed 45 MB.`);
       return;
     }
 
-    setUploading(true);
-    let successCount = 0;
+    setUploadModal({
+      open: true,
+      files: fileList,
+      password: "",
+      isPasswordProtected: false
+    });
+  }
 
+  async function confirmUpload() {
+    const { files: fileList, isPasswordProtected, password } = uploadModal;
+    if (isPasswordProtected && !password.trim()) {
+      onToast?.("Please enter a password or uncheck password protection.");
+      return;
+    }
+
+    setUploadModal(prev => ({ ...prev, open: false }));
+    setUploading(true);
+
+    let passHash = null;
+    if (isPasswordProtected) {
+      passHash = await sha256(password.trim());
+    }
+
+    let successCount = 0;
     for (const file of fileList) {
       try {
         const cleanName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-        const uniquePath = `${DRIVE_FOLDER}/${Date.now()}_${cleanName}`;
+        const uniquePath = isPasswordProtected
+          ? `${DRIVE_FOLDER}/L_${passHash}_${Date.now()}_${cleanName}`
+          : `${DRIVE_FOLDER}/P_${Date.now()}_${cleanName}`;
+
         const { error } = await supabase.storage.from("images").upload(uniquePath, file, {
           cacheControl: "3600",
           upsert: false
@@ -127,19 +203,69 @@ export default function DriveView({ onHome, onToast }) {
 
     setUploading(false);
     if (successCount > 0) {
-      onToast?.(`Uploaded ${successCount} file(s) to Cloud Drive!`);
+      onToast?.(`Uploaded ${successCount} file(s) successfully!`);
       await refreshData();
     }
   }
 
-  async function handleDelete(fileName) {
-    if (!window.confirm(`Delete "${fileName}" permanently from Cloud Drive?`)) return;
+  function getFileUrl(storedName) {
+    const { data } = supabase.storage.from("images").getPublicUrl(`${DRIVE_FOLDER}/${storedName}`);
+    return data?.publicUrl || "";
+  }
+
+  function triggerDirectDownload(url, filename) {
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.target = "_blank";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
+
+  // Handle Download Request
+  async function handleDownloadRequest(fileParsed) {
+    if (!fileParsed.isLocked) {
+      triggerDirectDownload(getFileUrl(fileParsed.storedName), fileParsed.originalName);
+      onToast?.(`Downloading "${fileParsed.originalName}"...`);
+      return;
+    }
+
+    // File is password-protected -> prompt for password
+    setAuthDialog({
+      open: true,
+      fileParsed,
+      action: "download",
+      password: "",
+      error: ""
+    });
+  }
+
+  // Handle Delete Request
+  async function handleDeleteRequest(fileParsed) {
+    if (!fileParsed.isLocked) {
+      if (!window.confirm(`Delete "${fileParsed.originalName}" permanently from Cloud Drive?`)) return;
+      await performDelete(fileParsed.storedName);
+      return;
+    }
+
+    // Password-protected -> prompt for password
+    setAuthDialog({
+      open: true,
+      fileParsed,
+      action: "delete",
+      password: "",
+      error: ""
+    });
+  }
+
+  async function performDelete(storedName) {
     try {
-      const { error } = await supabase.storage.from("images").remove([`${DRIVE_FOLDER}/${fileName}`]);
+      const { error } = await supabase.storage.from("images").remove([`${DRIVE_FOLDER}/${storedName}`]);
       if (error) throw error;
       onToast?.("File deleted from Cloud Drive.");
-      setFiles(prev => prev.filter(f => f.name !== fileName));
-      if (previewFile?.name === fileName) setPreviewFile(null);
+      setFiles(prev => prev.filter(f => f.name !== storedName));
+      if (previewFile?.storedName === storedName) setPreviewFile(null);
       await refreshData();
     } catch (err) {
       console.error("Delete error:", err);
@@ -147,23 +273,65 @@ export default function DriveView({ onHome, onToast }) {
     }
   }
 
-  function getFileUrl(fileName) {
-    const { data } = supabase.storage.from("images").getPublicUrl(`${DRIVE_FOLDER}/${fileName}`);
-    return data?.publicUrl || "";
-  }
+  async function handleAuthSubmit() {
+    const { fileParsed, action, password } = authDialog;
+    if (!password) {
+      setAuthDialog(prev => ({ ...prev, error: "Please enter the password" }));
+      return;
+    }
 
-  function handleShare(fileName) {
-    const url = getFileUrl(fileName);
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(url);
-      onToast?.("Shareable link copied to clipboard!");
-    } else {
-      prompt("Shareable file link:", url);
+    const inputHash = await sha256(password.trim());
+    if (inputHash !== fileParsed.passHash) {
+      setAuthDialog(prev => ({ ...prev, error: "Incorrect password! Access denied." }));
+      return;
+    }
+
+    setAuthDialog({ open: false, fileParsed: null, action: "", password: "", error: "" });
+
+    if (action === "download") {
+      triggerDirectDownload(getFileUrl(fileParsed.storedName), fileParsed.originalName);
+      onToast?.(`Password verified! Downloading "${fileParsed.originalName}"...`);
+    } else if (action === "delete") {
+      await performDelete(fileParsed.storedName);
+    } else if (action === "preview") {
+      openPreview(fileParsed);
     }
   }
 
-  const filteredFiles = files.filter(f => 
-    f.name.toLowerCase().includes(searchQuery.toLowerCase())
+  function handleShare(fileParsed) {
+    const url = getFileUrl(fileParsed.storedName);
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(url).catch(() => {});
+    }
+    setShareModal({
+      open: true,
+      url,
+      fileName: fileParsed.originalName,
+      isLocked: fileParsed.isLocked
+    });
+    onToast?.("Link copied to clipboard!");
+  }
+
+  function openPreview(fileParsed, rawFile) {
+    const fileUrl = getFileUrl(fileParsed.storedName);
+    const isImg = rawFile?.metadata?.mimetype?.startsWith("image/") || /\.(png|jpe?g|gif|webp|svg)$/i.test(fileParsed.originalName);
+    setPreviewFile({
+      name: fileParsed.originalName,
+      storedName: fileParsed.storedName,
+      url: fileUrl,
+      isImg,
+      size: rawFile?.metadata?.size,
+      fileParsed
+    });
+  }
+
+  const parsedFiles = files.map(f => ({
+    raw: f,
+    ...parseDriveFileName(f.name)
+  }));
+
+  const filteredFiles = parsedFiles.filter(f => 
+    f.originalName.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
@@ -179,7 +347,7 @@ export default function DriveView({ onHome, onToast }) {
           <div>
             <h2 style={{ margin: 0, fontSize: "20px", fontWeight: 700, letterSpacing: "-0.02em" }}>Cloud Drive</h2>
             <p style={{ margin: 0, fontSize: "12px", color: "var(--text-dim)" }}>
-              Shareable cloud storage • Max 10 MB per file • <strong>Strict 45 MB total cloud limit</strong>
+              Password protection • Share links • Max 10 MB/file • <strong>45 MB total cloud limit</strong>
             </p>
           </div>
         </div>
@@ -201,7 +369,7 @@ export default function DriveView({ onHome, onToast }) {
           <input 
             type="file" 
             ref={fileInputRef} 
-            onChange={(e) => handleUpload(e.target.files)} 
+            onChange={(e) => handleFileSelection(e.target.files)} 
             style={{ display: "none" }} 
             multiple 
           />
@@ -255,14 +423,13 @@ export default function DriveView({ onHome, onToast }) {
           }} />
         </div>
 
-        {/* Breakdown of all cloud data */}
         <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "var(--text-dim)", flexWrap: "wrap", gap: "6px" }}>
           <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
             <span>📁 Drive: <strong>{formatBytes(cloudUsage.driveFilesBytes)}</strong></span>
-            <span>🖼️ Uploaded Media: <strong>{formatBytes(cloudUsage.rootMediaBytes)}</strong></span>
-            <span>📝 Notes DB: <strong>{formatBytes(cloudUsage.dbNotesBytes)}</strong></span>
+            <span>🖼️ Media: <strong>{formatBytes(cloudUsage.rootMediaBytes)}</strong></span>
+            <span>📝 Notes: <strong>{formatBytes(cloudUsage.dbNotesBytes)}</strong></span>
           </div>
-          <span>Remaining: <strong style={{ color: "var(--text)" }}>{formatBytes(Math.max(0, OVERALL_CLOUD_STORAGE_CAP - overallUsedBytes))}</strong></span>
+          <span>Free cloud space: <strong style={{ color: "var(--text)" }}>{formatBytes(Math.max(0, OVERALL_CLOUD_STORAGE_CAP - overallUsedBytes))}</strong></span>
         </div>
       </section>
 
@@ -273,7 +440,7 @@ export default function DriveView({ onHome, onToast }) {
         onDrop={(e) => {
           e.preventDefault();
           setDragOver(false);
-          handleUpload(e.dataTransfer.files);
+          handleFileSelection(e.dataTransfer.files);
         }}
         onClick={() => fileInputRef.current?.click()}
         style={{
@@ -294,15 +461,15 @@ export default function DriveView({ onHome, onToast }) {
             <line x1="12" y1="3" x2="12" y2="15"/>
           </svg>
           <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--text)" }}>
-            Drop files here to upload or <span style={{ color: "var(--accent)", textDecoration: "underline" }}>browse</span>
+            Drop files here to upload with password or public access
           </div>
           <div style={{ fontSize: "12px" }}>
-            Max 10 MB per file • Overall cloud ceiling 45 MB • Instant public share links
+            Max 10 MB per file • Strict 45 MB total cloud cap • One-click share links
           </div>
         </div>
       </section>
 
-      {/* Files Filter & List */}
+      {/* Files Filter & Grid */}
       <section style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", gap: "12px", flexWrap: "wrap" }}>
           <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 600 }}>Drive Files ({filteredFiles.length})</h3>
@@ -325,7 +492,7 @@ export default function DriveView({ onHome, onToast }) {
 
         {loading ? (
           <div style={{ padding: "40px", textAlign: "center", color: "var(--text-dim)" }}>
-            Calculating overall cloud storage & loading Drive files...
+            Loading Drive files...
           </div>
         ) : filteredFiles.length === 0 ? (
           <div style={{
@@ -352,14 +519,14 @@ export default function DriveView({ onHome, onToast }) {
             gap: "14px",
             overflowY: "auto"
           }}>
-            {filteredFiles.map((file) => {
-              const fileUrl = getFileUrl(file.name);
-              const isImg = file.metadata?.mimetype?.startsWith("image/") || /\.(png|jpe?g|gif|webp|svg)$/i.test(file.name);
-              const displayName = file.name.replace(/^\d+_/, "");
+            {filteredFiles.map((fileParsed) => {
+              const { raw, originalName, storedName, isLocked } = fileParsed;
+              const fileUrl = getFileUrl(storedName);
+              const isImg = raw.metadata?.mimetype?.startsWith("image/") || /\.(png|jpe?g|gif|webp|svg)$/i.test(originalName);
 
               return (
                 <div
-                  key={file.id || file.name}
+                  key={storedName}
                   style={{
                     background: "var(--surface)",
                     border: "1px solid var(--border)",
@@ -375,9 +542,51 @@ export default function DriveView({ onHome, onToast }) {
                   onMouseEnter={(e) => e.currentTarget.style.borderColor = "var(--accent)"}
                   onMouseLeave={(e) => e.currentTarget.style.borderColor = "var(--border)"}
                 >
-                  {/* File Thumbnail or Icon Preview */}
+                  {/* Lock Indicator Badge */}
+                  <div style={{
+                    position: "absolute",
+                    top: "16px",
+                    right: "16px",
+                    zIndex: 2,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "4px",
+                    padding: "2px 6px",
+                    borderRadius: "999px",
+                    fontSize: "10px",
+                    fontWeight: 700,
+                    background: isLocked ? "rgba(239, 68, 68, 0.15)" : "rgba(34, 197, 94, 0.15)",
+                    color: isLocked ? "#ef4444" : "#22c55e",
+                    border: `1px solid ${isLocked ? "rgba(239, 68, 68, 0.3)" : "rgba(34, 197, 94, 0.3)"}`
+                  }}>
+                    {isLocked ? (
+                      <>
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                        </svg>
+                        Locked
+                      </>
+                    ) : (
+                      <>
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                          <path d="M7 11V7a5 5 0 0 1 9.9-1"/>
+                        </svg>
+                        Public
+                      </>
+                    )}
+                  </div>
+
+                  {/* Thumbnail / Icon preview */}
                   <div 
-                    onClick={() => setPreviewFile({ name: file.name, url: fileUrl, isImg, size: file.metadata?.size })}
+                    onClick={() => {
+                      if (isLocked) {
+                        setAuthDialog({ open: true, fileParsed, action: "preview", password: "", error: "" });
+                      } else {
+                        openPreview(fileParsed, raw);
+                      }
+                    }}
                     style={{
                       height: "110px",
                       background: "var(--bg)",
@@ -390,27 +599,35 @@ export default function DriveView({ onHome, onToast }) {
                       border: "1px solid var(--border)"
                     }}
                   >
-                    {isImg ? (
+                    {isImg && !isLocked ? (
                       <img 
                         src={fileUrl} 
-                        alt={displayName} 
+                        alt={originalName} 
                         style={{ width: "100%", height: "100%", objectFit: "cover" }} 
                         loading="lazy"
                       />
+                    ) : isLocked ? (
+                      <div style={{ color: "#ef4444", display: "flex", flexDirection: "column", alignItems: "center", gap: "6px" }}>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                        </svg>
+                        <span style={{ fontSize: "11px", fontWeight: 600 }}>Password Protected</span>
+                      </div>
                     ) : (
                       <div style={{ color: "var(--accent)", display: "flex", flexDirection: "column", alignItems: "center", gap: "6px" }}>
-                        {getFileIcon(file.name)}
+                        {getFileIcon(originalName)}
                         <span style={{ fontSize: "11px", fontWeight: 600, textTransform: "uppercase" }}>
-                          {file.name.split(".").pop()}
+                          {originalName.split(".").pop()}
                         </span>
                       </div>
                     )}
                   </div>
 
-                  {/* Metadata & Name */}
+                  {/* Title & Info */}
                   <div style={{ minWidth: 0, flex: 1 }}>
                     <div 
-                      title={displayName} 
+                      title={originalName} 
                       style={{ 
                         fontWeight: 600, 
                         fontSize: "13px", 
@@ -419,22 +636,22 @@ export default function DriveView({ onHome, onToast }) {
                         whiteSpace: "nowrap" 
                       }}
                     >
-                      {displayName}
+                      {originalName}
                     </div>
                     <div style={{ fontSize: "11px", color: "var(--text-dim)", marginTop: "2px" }}>
-                      {formatBytes(file.metadata?.size)} • {file.created_at ? new Date(file.created_at).toLocaleDateString() : ""}
+                      {formatBytes(raw.metadata?.size)} • {raw.created_at ? new Date(raw.created_at).toLocaleDateString() : ""}
                     </div>
                   </div>
 
-                  {/* Action Buttons */}
+                  {/* Action buttons */}
                   <div style={{ display: "flex", gap: "6px", borderTop: "1px solid var(--border)", paddingTop: "8px" }}>
                     <button 
                       className="btn" 
-                      title="Copy Share Link" 
-                      onClick={() => handleShare(file.name)}
+                      title="Shareable Link" 
+                      onClick={() => handleShare(fileParsed)}
                       style={{ flex: 1, padding: "5px 8px", fontSize: "11px", background: "var(--bg)", color: "var(--text)", border: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}
                     >
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <circle cx="18" cy="5" r="3"/>
                         <circle cx="6" cy="12" r="3"/>
                         <circle cx="18" cy="19" r="3"/>
@@ -443,28 +660,25 @@ export default function DriveView({ onHome, onToast }) {
                       </svg>
                       Share
                     </button>
-                    <a 
-                      href={fileUrl} 
-                      download={displayName} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
+                    <button 
                       className="btn" 
-                      title="Download"
+                      title={isLocked ? "Download (Requires Password)" : "Download"}
+                      onClick={() => handleDownloadRequest(fileParsed)}
                       style={{ padding: "5px 8px", fontSize: "11px", background: "var(--bg)", color: "var(--text)", border: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center" }}
                     >
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                         <polyline points="7 10 12 15 17 10"/>
                         <line x1="12" y1="15" x2="12" y2="3"/>
                       </svg>
-                    </a>
+                    </button>
                     <button 
                       className="btn" 
-                      title="Delete File" 
-                      onClick={() => handleDelete(file.name)}
+                      title={isLocked ? "Delete (Requires Password)" : "Delete"}
+                      onClick={() => handleDeleteRequest(fileParsed)}
                       style={{ padding: "5px 8px", fontSize: "11px", background: "var(--bg)", color: "#ef4444", border: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center" }}
                     >
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <polyline points="3 6 5 6 21 6"/>
                         <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
                       </svg>
@@ -477,7 +691,250 @@ export default function DriveView({ onHome, onToast }) {
         )}
       </section>
 
-      {/* Preview Modal */}
+      {/* ── 1. UPLOAD CONFIG MODAL (PASSWORD OR NO PASSWORD) ── */}
+      {uploadModal.open && (
+        <div 
+          className="dialog-overlay show" 
+          onClick={() => setUploadModal(prev => ({ ...prev, open: false }))}
+          style={{ zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}
+        >
+          <div 
+            style={{ 
+              background: "var(--surface)", 
+              borderRadius: "var(--r-md)", 
+              padding: "20px", 
+              width: "100%", 
+              maxWidth: "420px",
+              boxShadow: "var(--shadow-lg)",
+              border: "1px solid var(--border)",
+              display: "flex",
+              flexDirection: "column",
+              gap: "14px"
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: 0, fontSize: "17px", fontWeight: 700 }}>Upload File Options</h3>
+            <div style={{ fontSize: "13px", color: "var(--text-dim)" }}>
+              {uploadModal.files.length} file(s) selected:{" "}
+              <strong>{uploadModal.files.map(f => f.name).join(", ")}</strong>
+            </div>
+
+            {/* Checkbox for Password Protection */}
+            <label style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "14px", fontWeight: 600, cursor: "pointer", userSelect: "none" }}>
+              <input 
+                type="checkbox" 
+                checked={uploadModal.isPasswordProtected}
+                onChange={(e) => setUploadModal(prev => ({ ...prev, isPasswordProtected: e.target.checked }))}
+                style={{ width: "16px", height: "16px", cursor: "pointer" }}
+              />
+              <span>Protect with Password</span>
+            </label>
+
+            {uploadModal.isPasswordProtected && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                <input 
+                  type="password"
+                  placeholder="Set download & delete password"
+                  value={uploadModal.password}
+                  onChange={(e) => setUploadModal(prev => ({ ...prev, password: e.target.value }))}
+                  onKeyDown={(e) => { if (e.key === "Enter") confirmUpload(); }}
+                  style={{
+                    padding: "8px 12px",
+                    borderRadius: "var(--r-sm)",
+                    background: "var(--bg)",
+                    color: "var(--text)",
+                    border: "1px solid var(--border)",
+                    fontSize: "13px",
+                    outline: "none"
+                  }}
+                  autoFocus
+                />
+                <div style={{ fontSize: "11px", color: "var(--text-dim)" }}>
+                  Only users who enter this password will be able to download or delete this file.
+                </div>
+              </div>
+            )}
+
+            {!uploadModal.isPasswordProtected && (
+              <div style={{ fontSize: "12px", color: "var(--text-dim)", background: "var(--bg)", padding: "10px", borderRadius: "var(--r-sm)", border: "1px solid var(--border)" }}>
+                🔓 <strong>Public File</strong>: Anyone with the shareable link can download directly without a password.
+              </div>
+            )}
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", marginTop: "6px" }}>
+              <button 
+                className="btn" 
+                onClick={() => setUploadModal(prev => ({ ...prev, open: false }))}
+                style={{ background: "var(--bg)", color: "var(--text)", border: "1px solid var(--border)" }}
+              >
+                Cancel
+              </button>
+              <button 
+                className="btn btn-primary" 
+                onClick={confirmUpload}
+              >
+                Upload Now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 2. PASSWORD AUTH DIALOG (FOR DOWNLOAD OR DELETE) ── */}
+      {authDialog.open && (
+        <div 
+          className="dialog-overlay show" 
+          onClick={() => setAuthDialog({ open: false, fileParsed: null, action: "", password: "", error: "" })}
+          style={{ zIndex: 10001, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}
+        >
+          <div 
+            style={{ 
+              background: "var(--surface)", 
+              borderRadius: "var(--r-md)", 
+              padding: "20px", 
+              width: "100%", 
+              maxWidth: "400px",
+              boxShadow: "var(--shadow-lg)",
+              border: "1px solid var(--border)",
+              display: "flex",
+              flexDirection: "column",
+              gap: "14px"
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <span style={{ fontSize: "20px" }}>🔒</span>
+              <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 700 }}>
+                {authDialog.action === "delete" ? "Confirm File Deletion" : "Protected Download"}
+              </h3>
+            </div>
+
+            <div style={{ fontSize: "13px", color: "var(--text-dim)" }}>
+              "{authDialog.fileParsed?.originalName}" is password protected. Enter the password to {authDialog.action}:
+            </div>
+
+            <input 
+              type="password"
+              placeholder="Enter file password"
+              value={authDialog.password}
+              onChange={(e) => setAuthDialog(prev => ({ ...prev, password: e.target.value, error: "" }))}
+              onKeyDown={(e) => { if (e.key === "Enter") handleAuthSubmit(); }}
+              style={{
+                padding: "8px 12px",
+                borderRadius: "var(--r-sm)",
+                background: "var(--bg)",
+                color: "var(--text)",
+                border: "1px solid var(--border)",
+                fontSize: "13px",
+                outline: "none"
+              }}
+              autoFocus
+            />
+
+            {authDialog.error && (
+              <div style={{ fontSize: "12px", color: "#ef4444", fontWeight: 600 }}>
+                {authDialog.error}
+              </div>
+            )}
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+              <button 
+                className="btn" 
+                onClick={() => setAuthDialog({ open: false, fileParsed: null, action: "", password: "", error: "" })}
+                style={{ background: "var(--bg)", color: "var(--text)", border: "1px solid var(--border)" }}
+              >
+                Cancel
+              </button>
+              <button 
+                className="btn btn-primary" 
+                onClick={handleAuthSubmit}
+                style={{ background: authDialog.action === "delete" ? "#ef4444" : "var(--accent)" }}
+              >
+                {authDialog.action === "delete" ? "Unlock & Delete" : "Unlock & Download"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 3. SHARABLE LINK MODAL (DISPLAYS URL + COPIED FEEDBACK) ── */}
+      {shareModal.open && (
+        <div 
+          className="dialog-overlay show" 
+          onClick={() => setShareModal(prev => ({ ...prev, open: false }))}
+          style={{ zIndex: 10001, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}
+        >
+          <div 
+            style={{ 
+              background: "var(--surface)", 
+              borderRadius: "var(--r-md)", 
+              padding: "20px", 
+              width: "100%", 
+              maxWidth: "500px",
+              boxShadow: "var(--shadow-lg)",
+              border: "1px solid var(--border)",
+              display: "flex",
+              flexDirection: "column",
+              gap: "12px"
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 700, display: "flex", alignItems: "center", gap: "8px" }}>
+                <span>🔗</span> Share File Link
+              </h3>
+              <button 
+                onClick={() => setShareModal(prev => ({ ...prev, open: false }))}
+                style={{ background: "none", border: "none", color: "var(--text-dim)", cursor: "pointer", fontSize: "16px" }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ fontSize: "13px", color: "var(--text-dim)" }}>
+              Shareable link for: <strong>{shareModal.fileName}</strong>
+              {shareModal.isLocked && (
+                <span style={{ color: "#ef4444", fontWeight: 600, marginLeft: "6px" }}>(Password Protected)</span>
+              )}
+            </div>
+
+            <div style={{ display: "flex", gap: "8px" }}>
+              <input 
+                type="text" 
+                readOnly 
+                value={shareModal.url}
+                onClick={(e) => e.target.select()}
+                style={{
+                  flex: 1,
+                  padding: "8px 10px",
+                  fontSize: "12px",
+                  borderRadius: "var(--r-sm)",
+                  background: "var(--bg)",
+                  color: "var(--text)",
+                  border: "1px solid var(--border)",
+                  outline: "none"
+                }}
+              />
+              <button 
+                className="btn btn-primary"
+                onClick={() => {
+                  navigator.clipboard.writeText(shareModal.url);
+                  onToast?.("Link copied to clipboard!");
+                }}
+                style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "12px", whiteSpace: "nowrap" }}
+              >
+                Copy Link
+              </button>
+            </div>
+
+            <div style={{ fontSize: "12px", color: "var(--accent)", display: "flex", alignItems: "center", gap: "6px" }}>
+              <span>✓</span> Link has been automatically copied to your clipboard!
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 4. PREVIEW MODAL ── */}
       {previewFile && (
         <div 
           className="dialog-overlay show" 
@@ -502,15 +959,15 @@ export default function DriveView({ onHome, onToast }) {
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <strong style={{ fontSize: "14px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "400px" }}>
-                {previewFile.name.replace(/^\d+_/, "")}
+                {previewFile.name}
               </strong>
               <div style={{ display: "flex", gap: "8px" }}>
                 <button 
                   className="btn btn-primary"
-                  onClick={() => handleShare(previewFile.name)}
+                  onClick={() => handleShare(previewFile.fileParsed)}
                   style={{ padding: "4px 8px", fontSize: "12px" }}
                 >
-                  Copy Share Link
+                  Share Link
                 </button>
                 <button 
                   className="btn"
@@ -535,16 +992,13 @@ export default function DriveView({ onHome, onToast }) {
                     {getFileIcon(previewFile.name)}
                   </div>
                   <div>Preview not available for this file type.</div>
-                  <a 
-                    href={previewFile.url} 
-                    target="_blank" 
-                    rel="noopener noreferrer" 
-                    download
+                  <button 
+                    onClick={() => handleDownloadRequest(previewFile.fileParsed)}
                     className="btn btn-primary"
                     style={{ marginTop: "14px", display: "inline-block" }}
                   >
                     Download File ({formatBytes(previewFile.size)})
-                  </a>
+                  </button>
                 </div>
               )}
             </div>
