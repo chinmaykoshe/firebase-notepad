@@ -11,11 +11,21 @@ export default defineConfig({
     sourcemap: false,
     rollupOptions: {
       output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom', 'react-router-dom'],
-          firebase: ['firebase/app', 'firebase/auth', 'firebase/firestore'],
-          supabase: ['@supabase/supabase-js'],
-          utils: ['jspdf', 'xlsx', 'tesseract.js']
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom')) {
+              return 'vendor';
+            }
+            if (id.includes('@supabase')) {
+              return 'supabase';
+            }
+            if (id.includes('firebase')) {
+              return 'firebase';
+            }
+            if (id.includes('jspdf') || id.includes('xlsx') || id.includes('tesseract.js')) {
+              return 'utils';
+            }
+          }
         }
       }
     }
