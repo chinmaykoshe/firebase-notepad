@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { supabase } from "../supabase";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB per file
-const MAX_TOTAL_STORAGE = 50 * 1024 * 1024; // 50 MB total drive capacity
+const MAX_TOTAL_STORAGE = 45 * 1024 * 1024; // 45 MB total drive capacity
 const DRIVE_FOLDER = "drive";
 
 function formatBytes(bytes, decimals = 1) {
@@ -101,7 +101,7 @@ export default function DriveView({ onHome, onToast }) {
     // Check overall drive storage quota
     const incomingBytes = fileList.reduce((acc, f) => acc + f.size, 0);
     if (totalUsedBytes + incomingBytes > MAX_TOTAL_STORAGE) {
-      onToast?.(`Upload exceeds total drive capacity (${formatBytes(totalUsedBytes)} used of 50 MB). Please free up space.`);
+      onToast?.(`Upload exceeds total drive capacity (${formatBytes(totalUsedBytes)} used of 45 MB). Please free up space.`);
       return;
     }
 
@@ -177,7 +177,7 @@ export default function DriveView({ onHome, onToast }) {
           <div>
             <h2 style={{ margin: 0, fontSize: "20px", fontWeight: 700, letterSpacing: "-0.02em" }}>Cloud Drive</h2>
             <p style={{ margin: 0, fontSize: "12px", color: "var(--text-dim)" }}>
-              Shareable cloud storage • Max 10 MB/file • 50 MB total limit
+              Shareable cloud storage • Max 10 MB/file • 45 MB total limit
             </p>
           </div>
         </div>
@@ -231,7 +231,7 @@ export default function DriveView({ onHome, onToast }) {
             <span>Drive Storage Usage</span>
           </div>
           <div style={{ color: "var(--text-dim)" }}>
-            <strong style={{ color: "var(--text)" }}>{formatBytes(totalUsedBytes)}</strong> used of 50 MB ({usedPercentage.toFixed(1)}%)
+            <strong style={{ color: "var(--text)" }}>{formatBytes(totalUsedBytes)}</strong> used of 45 MB ({usedPercentage.toFixed(1)}%)
           </div>
         </div>
 
